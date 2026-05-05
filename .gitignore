@@ -12,3 +12,9 @@ build/
 *.db-journal
 *.db-wal
 server/tokens/
+mongo_data/
+*.exe
+*.msi
+*.zip
+*.7z
+*.rar
