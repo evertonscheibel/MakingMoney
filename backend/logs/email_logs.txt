@@ -1,0 +1,14 @@
+
+================================================
+TIME: 2026-04-26T23:09:50.339Z
+TO: TEste <teste@gmail.com>
+SUBJECT: Código de Verificação - GestãoPro
+------------------------------------------------
+Olá TEste,
+Obrigado por se cadastrar no GestãoPro.
+Seu código para ativar sua conta é:
+
+       [ 781756 ]
+
+O código expira em 24 horas.
+================================================

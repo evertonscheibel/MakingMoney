@@ -1,0 +1,66 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "commonjs",
+        "lib": [
+            "ES2022"
+        ],
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "moduleResolution": "node",
+        "baseUrl": "./src",
+        "paths": {
+            "@/*": [
+                "./*"
+            ],
+            "@config/*": [
+                "./config/*"
+            ],
+            "@controllers/*": [
+                "./controllers/*"
+            ],
+            "@services/*": [
+                "./services/*"
+            ],
+            "@repositories/*": [
+                "./repositories/*"
+            ],
+            "@models/*": [
+                "./models/*"
+            ],
+            "@middleware/*": [
+                "./middleware/*"
+            ],
+            "@routes/*": [
+                "./routes/*"
+            ],
+            "@utils/*": [
+                "./utils/*"
+            ],
+            "@types/*": [
+                "./types/*"
+            ]
+        },
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ]
+    },
+    "include": [
+        "src/**/*",
+        "seeds/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.test.ts"
+    ]
+}
