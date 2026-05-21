@@ -5,7 +5,7 @@ services:
     image: mongo:7
     container_name: gestaopro-mongodb
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27018:27017"
     volumes:
       - mongo_data:/data/db
     networks:
@@ -20,7 +20,7 @@ services:
     build: ./backend
     container_name: gestaopro-backend
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -31,7 +31,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=production
       - PORT=3001
-      - FRONTEND_URL=http://localhost:5173
+      - FRONTEND_URL=http://localhost:8080
     networks:
       - gestaopro-network
     restart: unless-stopped
@@ -40,7 +40,7 @@ services:
     build: ./frontend
     container_name: gestaopro-frontend
     ports:
-      - "5173:80"
+      - "8080:80"
     depends_on:
       - backend
     networks:
