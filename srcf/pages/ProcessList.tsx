@@ -453,36 +453,36 @@ export default function ProcessList() {
                     <table className="table table-fixed w-full px-2">
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
-                                <th className="w-[65px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
-                                <th className="w-auto min-w-[150px] lg:w-[40%] xl:w-[45%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
-                                <th className="w-auto min-w-[210px] lg:w-[25%] xl:w-[20%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
-                                <th className="w-[90px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
-                                <th className="w-[90px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
-                                <th className="w-[100px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400">Entrega</th>
-                                <th className="w-auto min-w-[120px] xl:w-[15%] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400">Responsável</th>
-                                <th className="w-[70px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400">Pontuação</th>
-                                <th className="w-[145px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Ações</th>
+                                <th className="w-[70px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
+                                <th className="w-auto min-w-[150px] lg:w-[25%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
+                                <th className="w-auto min-w-[180px] lg:w-[15%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
+                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
+                                <th className="w-[110px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
+                                <th className="w-[125px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
+                                <th className="w-[130px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400">Entrega</th>
+                                <th className="w-[95px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400">Pontuação</th>
+                                <th className="w-[160px] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400">Responsável</th>
+                                <th className="w-[150px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
-                                    <td className="w-[65px] font-mono text-sm text-center hidden sm:table-cell">{process.code}</td>
+                                    <td className="w-[70px] font-mono text-sm text-center hidden sm:table-cell">{process.code}</td>
                                     <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
                                     <td className="truncate hidden lg:table-cell" title={process.sector}>{process.sector}</td>
-                                    <td className="w-[90px] text-sm text-center hidden sm:table-cell">
+                                    <td className="w-[110px] text-sm text-center hidden sm:table-cell">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[90px] text-sm text-center">
+                                    <td className="w-[110px] text-sm text-center">
                                         {new Date(process.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[100px] text-center">
+                                    <td className="w-[125px] text-center">
                                         <div className="flex justify-center">
                                             {getStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[110px] text-sm text-center hidden lg:table-cell">
+                                    <td className="w-[130px] text-sm text-center hidden lg:table-cell">
                                         <div className="flex flex-col gap-1 items-center">
                                             <span>
                                                 {process.deliveryDate
@@ -492,7 +492,10 @@ export default function ProcessList() {
                                             {getDeliveryStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="text-sm hidden xl:table-cell">
+                                    <td className="w-[95px] font-semibold hidden xl:table-cell text-center">
+                                        {process.score !== null ? process.score : '-'}
+                                    </td>
+                                    <td className="w-[160px] text-sm hidden xl:table-cell">
                                         {(() => {
                                             const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
@@ -517,10 +520,7 @@ export default function ProcessList() {
                                             );
                                         })()}
                                     </td>
-                                    <td className="w-[70px] font-semibold hidden xl:table-cell text-center">
-                                        {process.score !== null ? process.score : '-'}
-                                    </td>
-                                    <td className="w-[145px] text-center">
+                                    <td className="w-[150px] text-center">
                                         <div className="flex items-center justify-center gap-0.5">
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
