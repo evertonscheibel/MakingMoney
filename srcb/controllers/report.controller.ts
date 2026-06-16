@@ -181,7 +181,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
     }
 
 
-    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) } };
+    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
 
     // Sector filter should be applied for everyone if provided
     if (sector && sector !== 'Todos') {
@@ -275,7 +275,7 @@ export const getSectorRanking = asyncHandler(async (req: Request, res: Response)
         throw new NotFoundError('Cycle');
     }
 
-    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) } };
+    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
 
     // Ranking always shows sector data
 
@@ -345,7 +345,7 @@ export const getStatusDistribution = asyncHandler(async (req: Request, res: Resp
 
     if (cycles.length === 0) { throw new NotFoundError('Cycle'); }
 
-    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) } };
+    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
 
     // Apply sector filter for everyone if provided
     if (sector && sector !== 'Todos') {
@@ -421,7 +421,7 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
 
     if (cycles.length === 0) { throw new NotFoundError('Cycle'); }
 
-    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) } };
+    const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
     if (sector) { filter.sector = sector; }
     if (req.query.status) { filter.status = req.query.status; }
 
@@ -498,6 +498,7 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
     const filter: Record<string, any> = {
         companyId: activeCompanyId,
         plannedDate: { $gte: startOfMonth, $lte: endOfMonth },
+        isActive: { $ne: false },
     };
 
     const { roles: globalRoles, userId, sector: legacySector, sectors: userSectors, companyAccess } = req.user!;

@@ -19,6 +19,8 @@ import {
     Mail,
     Upload,
     Archive,
+    Eye,
+    EyeOff,
 } from 'lucide-react';
 import CloseMonthModal from '../components/CloseMonthModal';
 
@@ -62,6 +64,7 @@ export default function ProcessList() {
     const isOperator = user?.roles.includes(UserRole.OPERATOR) && !user?.roles.includes(UserRole.MASTER) && !user?.roles.includes(UserRole.MANAGER);
     const isStrictManager = user?.roles.includes(UserRole.MANAGER) && !user?.roles.includes(UserRole.MASTER);
     const isManager = user?.roles.includes(UserRole.MANAGER) || user?.roles.includes(UserRole.MASTER);
+    const isMasterUser = user?.roles.includes(UserRole.MASTER);
 
     const { data: currentCycle } = useQuery({
         queryKey: ['currentCycle', sectorFilter],
@@ -199,7 +202,7 @@ export default function ProcessList() {
     });
 
     const addSectorMutation = useMutation({
-        mutationFn: (sector: string) => companiesApi.addSector(user!.activeCompanyId!, sector),
+        mutationFn: (sector: string) => companiesApi.addSector(user!.activeCompanyId!, { sector, managerId: null }),
         onSuccess: async () => {
             const newSector = newSectorName.trim();
             // Auto-select the newly added sector FIRST
@@ -224,7 +227,16 @@ export default function ProcessList() {
         }
     });
 
-    const getStatusBadge = (status: ProcessStatus) => {
+    const getStatusBadge = (process: Process) => {
+        if (process.isActive === false) {
+            return (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <EyeOff className="w-3 h-3 mr-1" />
+                    Inativo
+                </span>
+            );
+        }
+        const status = process.status;
         const badges = {
             [ProcessStatus.PENDING]: { class: 'badge-pending', icon: Clock, text: 'Pendente' },
             [ProcessStatus.ON_TIME]: { class: 'badge-success', icon: CheckCircle, text: 'No Prazo' },
@@ -275,6 +287,10 @@ export default function ProcessList() {
             limitDate: formData.get('limitDate') as string,
             responsibleUserId: formData.get('responsibleUserId') as string || undefined,
         };
+
+        if (isMasterUser) {
+            data.isActive = formData.get('isActive') === 'true';
+        }
 
         if (selectedProcess) {
             updateMutation.mutate({ id: selectedProcess._id, data });
@@ -452,7 +468,7 @@ export default function ProcessList() {
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
-                                <tr key={process._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
                                     <td className="font-mono text-xs font-medium text-center hidden sm:table-cell">{process.code}</td>
                                     <td className="font-medium text-gray-900 dark:text-white truncate max-w-[120px] sm:max-w-[200px]" title={process.title}>{process.title}</td>
                                     <td className="truncate max-w-[120px] hidden 2xl:table-cell" title={process.sector}>{process.sector}</td>
@@ -464,38 +480,51 @@ export default function ProcessList() {
                                     </td>
                                     <td className="w-[100px] sm:w-[120px]">
                                         <div className="flex justify-center sm:justify-start">
-                                            {getStatusBadge(process.status)}
+                                            {getStatusBadge(process)}
                                         </div>
                                     </td>
                                     <td className="text-sm hidden lg:table-cell">
-                                        {process.deliveryDate
-                                            ? new Date(process.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
-                                            : '-'}
+                                        <div className="flex flex-col gap-1 items-start">
+                                            <span>
+                                                {process.deliveryDate
+                                                    ? new Date(process.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                                                    : '-'}
+                                            </span>
+                                            {getDeliveryStatusBadge(process)}
+                                        </div>
                                     </td>
                                     <td className="text-sm hidden xl:table-cell">
-                                        {typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
-                                            ? process.responsibleUserId.name
-                                            : '-'}
+                                        {(() => {
+                                            const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
+                                                ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
+                                                : process.responsibleUserId;
+                                            if (!userId) return <span className="text-gray-400 text-xs">-</span>;
+                                            
+                                            // First check if populated object name is available
+                                            if (typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null && (process.responsibleUserId as any).name) {
+                                                return (
+                                                    <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                                                        <UserCircle className="w-3 h-3 flex-shrink-0" />
+                                                        <span className="truncate max-w-[110px]" title={(process.responsibleUserId as any).name}>
+                                                            {(process.responsibleUserId as any).name}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // Fallback to finding in the users list
+                                            const foundUser = users?.find(u => (u.id || u._id) === userId);
+                                            return (
+                                                <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                                                    <UserCircle className="w-3 h-3 flex-shrink-0" />
+                                                    <span className="truncate max-w-[110px]" title={foundUser?.name || 'Carregando...'}>
+                                                        {foundUser?.name || 'Carregando...'}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="font-semibold hidden xl:table-cell text-center">
-                                        {process.score !== null ? process.score : '-'}
-                                    </td>
-                                    <td>
-                                        {getDeliveryStatusBadge(process)}
-                                    </td>
-                                    <td>
-                                        {process.responsibleUserId ? (
-                                            <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                                                <UserCircle className="w-3 h-3 flex-shrink-0" />
-                                                <span className="truncate max-w-[110px]" title={users?.find(u => (u.id || u._id) === process.responsibleUserId)?.name}>
-                                                    {users?.find(u => (u.id || u._id) === process.responsibleUserId)?.name || 'Carregando...'}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-gray-400 text-xs">-</span>
-                                        )}
-                                    </td>
-                                    <td className="font-semibold text-center">
                                         {process.score !== null ? process.score : '-'}
                                     </td>
                                     <td>
@@ -587,6 +616,31 @@ export default function ProcessList() {
                                             >
                                                 <Mail className="w-4 h-4" />
                                             </button>
+                                            {isMasterUser && (
+                                                <button
+                                                    onClick={() => {
+                                                        const actionText = process.isActive === false ? 'ativar' : 'inativar';
+                                                        if (confirm(`Tem certeza que deseja ${actionText} este processo?`)) {
+                                                            updateMutation.mutate({
+                                                                id: process._id,
+                                                                data: { isActive: process.isActive === false }
+                                                            });
+                                                        }
+                                                    }}
+                                                    className={`p-1.5 rounded-md transition-colors ${
+                                                        process.isActive === false
+                                                            ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                                                            : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
+                                                    }`}
+                                                    title={process.isActive === false ? 'Ativar Processo' : 'Inativar Processo'}
+                                                >
+                                                    {process.isActive === false ? (
+                                                        <Eye className="w-4 h-4" />
+                                                    ) : (
+                                                        <EyeOff className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                            )}
                                             {!isOperator && (
                                                 <>
                                                     <button

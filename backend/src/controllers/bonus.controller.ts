@@ -74,6 +74,7 @@ export const calculateBonusPreview = asyncHandler(async (req: Request, res: Resp
         companyId: new Types.ObjectId(companyId.toString()),
         plannedDate: { $gte: startDate, $lte: endDate },
         status: { $ne: ProcessStatus.PENDING },
+        isActive: { $ne: false },
     };
 
     if (isOperator && userId) {
@@ -151,6 +152,7 @@ export const getBonusReport = asyncHandler(async (req: Request, res: Response): 
         companyId: new Types.ObjectId(companyId.toString()),
         status: { $ne: ProcessStatus.PENDING },
         score: { $ne: null },
+        isActive: { $ne: false },
     };
 
     // Filter by quarter months using cycles

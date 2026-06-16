@@ -365,23 +365,25 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
     const processes = await Process.find({ cycleId: cycle._id });
 
     // Calculate KPIs
-    const scores = processes
+    const activeProcessesForKpi = processes.filter((p) => p.isActive !== false);
+
+    const scores = activeProcessesForKpi
         .filter((p) => p.score !== null)
         .map((p) => p.score!);
 
-    const onTimeCount = processes.filter(
+    const onTimeCount = activeProcessesForKpi.filter(
         (p) => p.status === ProcessStatus.ON_TIME
     ).length;
 
-    const criticalCount = processes.filter(
+    const criticalCount = activeProcessesForKpi.filter(
         (p) => p.status === ProcessStatus.CRITICAL
     ).length;
 
     const avgScore = calculateAverage(scores);
-    const onTimePct = calculatePercentage(onTimeCount, processes.length);
+    const onTimePct = calculatePercentage(onTimeCount, activeProcessesForKpi.length);
 
     // Calculate average deviation
-    const deviations = processes
+    const deviations = activeProcessesForKpi
         .filter((p) => p.deliveryDate !== null)
         .map((p) => {
             const diff = p.deliveryDate!.getTime() - p.plannedDate.getTime();
@@ -398,7 +400,7 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
         avgScore,
         onTimePct,
         criticalCount,
-        totalProcesses: processes.length,
+        totalProcesses: activeProcessesForKpi.length,
         avgDeviationDays,
     };
 

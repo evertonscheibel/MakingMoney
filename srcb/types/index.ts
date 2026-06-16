@@ -146,6 +146,7 @@ export interface IProcess {
     score: number | null;
     status: ProcessStatus;
     responsibleUserId: Types.ObjectId | null;
+    isActive?: boolean;
 }
 
 export interface IEvaluationRules {

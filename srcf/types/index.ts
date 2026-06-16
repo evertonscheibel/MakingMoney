@@ -123,6 +123,7 @@ export interface Process {
     score: number | null;
     status: ProcessStatus;
     responsibleUserId?: string | { _id: string; name: string } | null;
+    isActive?: boolean;
 }
 
 export interface EvaluationRules {
@@ -240,6 +241,7 @@ export interface ProcessForm {
     plannedDate: string;
     limitDate: string;
     responsibleUserId?: string;
+    isActive?: boolean;
 }
 
 export interface DeliverForm {

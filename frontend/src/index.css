@@ -22,7 +22,7 @@
 
   /* Card */
   .card {
-    @apply bg-white rounded-xl shadow-soft p-6 border border-gray-100;
+    @apply bg-white rounded-lg shadow-soft p-4 sm:p-6 border border-gray-100;
   }
 
   .dark .card {
@@ -143,7 +143,7 @@
 
   /* Tables */
   .table {
-    @apply w-full text-sm text-left;
+    @apply w-full min-w-[720px] text-sm text-left;
   }
 
   .table th {
@@ -151,7 +151,7 @@
   }
 
   .table td {
-    @apply px-3 py-2 border-t border-gray-50;
+    @apply px-3 py-2 border-t border-gray-50 align-middle;
   }
 
   .table tr:hover td {
@@ -210,5 +210,11 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-gray-300 dark:bg-gray-700/50 rounded-full;
+  }
+
+  @media (max-width: 767px) {
+    .overflow-x-auto > table {
+      min-width: 680px;
+    }
   }
 }

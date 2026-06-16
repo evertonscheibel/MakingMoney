@@ -14,6 +14,9 @@ validateConfig();
 
 const app = express();
 
+// Enable 'trust proxy' so express-rate-limit correctly identifies IPs behind reverse proxy (like Nginx)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -22,12 +25,18 @@ app.use(cors({
     origin: (origin, callback) => {
         const allowedOrigins = [
             config.frontendUrl,
+            config.frontendUrl.replace('http://', 'https://'),
             'http://localhost:8081',
             'http://127.0.0.1:8081'
         ];
 
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
+
+        // In development, allow any origin (facilitates local IP and tunnel testing)
+        if (config.nodeEnv === 'development') {
+            return callback(null, true);
+        }
 
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);

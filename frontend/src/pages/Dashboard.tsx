@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { reportsApi, cyclesApi, processesApi, metricsApi, companiesApi } from '../api';
+import { reportsApi, cyclesApi, metricsApi, companiesApi } from '../api';
 import { useAuth } from '../contexts';
 
 import { useState, useEffect } from 'react';

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { evaluationApi } from '../api';
 import { useAuth } from '../contexts';
-import type { EvaluationRules } from '../types';
+import { BonusCalculationMode, type EvaluationRules } from '../types';
 import { Settings, Play, History, Save, Plus, Trash2, Mail } from 'lucide-react';
 
 export default function EvaluationSettings() {

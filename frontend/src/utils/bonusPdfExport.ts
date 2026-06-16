@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { BonusReportResponse, BonusReportUser, BonusSectorSummary } from '../types';
+import type { BonusReportResponse } from '../types';
 
 const QUARTER_LABELS: Record<string, string> = {
     Q1: '1º Trimestre (Jan–Mar)',
@@ -89,7 +89,6 @@ function drawCover(doc: jsPDF, report: BonusReportResponse, companyName: string)
 
     // Background Gradient simulation
     for (let i = 0; i < 50; i++) {
-        const alpha = 1 - (i / 50);
         const r = Math.floor(15 + i * 0.5);
         const g = Math.floor(23 + i * 0.5);
         const b = Math.floor(42 + i * 0.5);
@@ -147,7 +146,7 @@ function drawCover(doc: jsPDF, report: BonusReportResponse, companyName: string)
         drawRoundedRect(doc, x, boxY, boxW, 45, 4, b.bg, b.color);
         
         // Icon Circle
-        doc.setFillColor(255);
+        doc.setFillColor(255, 255, 255);
         doc.circle(x + boxW / 2, boxY + 12, 6, 'F');
         drawIcon(doc, x + boxW / 2, boxY + 12, b.icon as any, b.color);
 

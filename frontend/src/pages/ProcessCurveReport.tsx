@@ -44,7 +44,6 @@ export default function ProcessCurveReport() {
     // Force sector for operators and strict managers if they have assigned sectors
     // If they have multiple, the first one is used as default, or they can maybe select from their allowed ones?
     // For now, let's just make it more resilient.
-    const hasSectors = allowedSectors.length > 0;
     const effectiveSector = (isOperator || isStrictManager)
         ? (selectedSector && allowedSectors.includes(selectedSector) ? selectedSector : (allowedSectors[0] || ''))
         : selectedSector;

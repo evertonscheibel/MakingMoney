@@ -46,7 +46,8 @@ export class AlertWorker {
         const criticalProcesses = await Process.find({
             cycleId: cycle._id,
             status: { $in: [ProcessStatus.LATE, ProcessStatus.CRITICAL] },
-            deliveryDate: null
+            deliveryDate: null,
+            isActive: { $ne: false }
         }).populate('responsibleUserId', 'name email');
 
         if (criticalProcesses.length === 0) return;

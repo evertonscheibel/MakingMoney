@@ -22,6 +22,7 @@ export const getMyMetrics = asyncHandler(async (req: Request, res: Response): Pr
         companyId: new Types.ObjectId(companyId.toString()),
         responsibleUserId: new Types.ObjectId(userId.toString()),
         status: { $ne: ProcessStatus.PENDING },
+        isActive: { $ne: false },
     };
 
     if (cycleId) {
@@ -78,6 +79,7 @@ export const getTeamMetrics = asyncHandler(async (req: Request, res: Response): 
     const matchStage: any = {
         companyId: new Types.ObjectId(companyId.toString()),
         status: { $ne: ProcessStatus.PENDING },
+        isActive: { $ne: false },
     };
 
     if (cycleId) {

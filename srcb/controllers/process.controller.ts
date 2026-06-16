@@ -60,7 +60,7 @@ export const listProcessesValidation = [
 export const listProcesses = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { roles: globalRoles, userId, sectors: userSectors, sector: legacySector, companyAccess } = req.user!;
     const companyId = req.companyId!;
-    const { cycleId, sector, status, search, responsibleUserId, page = '1', limit = '100' } = req.query;
+    const { cycleId, sector, status, search, responsibleUserId, active, page = '1', limit = '100' } = req.query;
 
     const { Process, Cycle, Company } = await import('../models');
 
@@ -73,6 +73,12 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
 
     const filter: Record<string, any> = { companyId };
+
+    if (!isMaster) {
+        filter.isActive = { $ne: false };
+    } else if (active !== undefined) {
+        filter.isActive = active === 'true';
+    }
 
     // Fetch company to check sector responsibilities
     const company = await Company.findById(companyId);
@@ -173,7 +179,7 @@ export const getProcess = asyncHandler(async (req: Request, res: Response): Prom
  */
 export const createProcess = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const companyId = req.companyId!;
-    const { code, title, sector, owner, plannedDate, limitDate, responsibleUserId } = req.body;
+    const { code, title, sector, owner, plannedDate, limitDate, responsibleUserId, isActive } = req.body;
 
     const { Process, Cycle } = await import('../models');
     const { getPendingStatus } = await import('../utils');
@@ -210,8 +216,11 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
         finalCode = nextCodeNum.toString().padStart(3, '0');
     }
 
+    const finalIsActive = isActive !== undefined ? (isMaster ? isActive === true || isActive === 'true' : true) : true;
+
     const process = await Process.create({
         companyId, cycleId: cycle._id, code: finalCode, title, sector, owner: owner || null, plannedDate: planned, limitDate: limit, status: getPendingStatus(planned, limit), responsibleUserId: responsibleUserId || null,
+        isActive: finalIsActive,
     });
 
     await auditAction(req, AuditAction.CREATE, EntityType.PROCESS, process._id.toString(), null, process.toObject() as any);
@@ -257,6 +266,12 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     }
 
     const before = process.toObject();
+    if (updates.isActive !== undefined) {
+        if (!isMaster) {
+            throw new AppError('Apenas usuários Master podem ativar ou inativar processos.', 403);
+        }
+        process.isActive = updates.isActive === true || updates.isActive === 'true';
+    }
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
     if (updates.sector) process.sector = updates.sector;
@@ -341,16 +356,18 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
+    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isOperator = !isMaster && !isManager;
+
+    const company = await Company.findById(companyId);
+    const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+    const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
 
     if (!isMaster) {
-        const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
 
-    const allUserSectors = [...new Set([...managedSectors, ...(userSectors || []), ...(legacySector ? [legacySector] : [])])];
-    if (isOperator && !allUserSectors.includes(process.sector)) {
+    if (isOperator && !allowedSectors.includes(process.sector)) {
         throw new AppError('You only have permission to send emails for processes in your allowed sectors', 403);
     }
 

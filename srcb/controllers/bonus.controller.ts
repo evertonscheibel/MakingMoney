@@ -31,6 +31,7 @@ export const calculateBonusPreview = asyncHandler(async (req: Request, res: Resp
         companyId: new Types.ObjectId(companyId.toString()),
         plannedDate: { $gte: startDate, $lte: endDate },
         status: { $ne: ProcessStatus.PENDING },
+        isActive: { $ne: false },
     };
 
     if (isOperator) {

@@ -79,6 +79,10 @@ const processSchema = new Schema<IProcessDocument>(
             default: null,
             index: true,
         },
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
         deliveryStatus: {
             type: String,
             enum: Object.values(DeliveryStatus),

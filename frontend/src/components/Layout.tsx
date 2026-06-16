@@ -46,14 +46,14 @@ export default function Layout({ children }: LayoutProps) {
                 <Header onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Global Info Bar */}
-                <div className="flex-none px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center text-sm gap-3 shadow-sm">
-                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <div className="flex-none px-4 sm:px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-col md:flex-row md:justify-between md:items-center text-xs sm:text-sm gap-3 shadow-sm">
+                    <div className="flex items-start sm:items-center gap-2 text-gray-700 dark:text-gray-300 w-full md:w-auto">
                         <Clock className="w-4 h-4 text-primary-500" />
                         <span className="font-medium">Data:</span>
-                        <span className="capitalize">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        <span className="capitalize leading-5">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 bg-success-50 dark:bg-success-900/20 px-3 py-1 rounded-full border border-success-100 dark:border-success-800">
+                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 bg-success-50 dark:bg-success-900/20 px-3 py-1 rounded-full border border-success-100 dark:border-success-800 w-full sm:w-auto justify-center">
                         <Calendar className="w-4 h-4 text-success-600" />
                         <span className="font-medium text-success-700 dark:text-success-300">Ciclo Aberto:</span>
                         <span className="font-bold text-success-700 dark:text-success-300 capitalize">
@@ -62,7 +62,7 @@ export default function Layout({ children }: LayoutProps) {
                     </div>
                 </div>
 
-                <main className="flex-1 overflow-y-auto p-6">
+                <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
                     {children}
                 </main>
             </div>

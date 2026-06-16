@@ -12,22 +12,23 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
     return (
         <header className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 transition-colors duration-200">
-            <div className="flex items-center justify-between h-full px-4">
-                <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between h-full px-3 sm:px-4">
+                <div className="flex items-center gap-3 min-w-0">
                     {/* Mobile menu button */}
                     <button
                         onClick={onMenuClick}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 xl:hidden"
+                        aria-label="Abrir menu"
                     >
                         <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                     </button>
 
                     {/* Logo for mobile */}
-                    <img src={chronosLogo} alt="Metodo Chronos Logo" className="h-10 w-auto lg:hidden" />
+                    <img src={chronosLogo} alt="Metodo Chronos Logo" className="h-9 sm:h-10 w-auto max-w-[170px] sm:max-w-none object-contain xl:hidden" />
                 </div>
 
                 {/* Spacer for desktop */}
-                <div className="hidden lg:block" />
+                <div className="hidden xl:block" />
 
                 {/* Right side */}
                 <div className="flex items-center gap-2">
@@ -49,7 +50,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     {/* Logout */}
                     <button
                         onClick={logout}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="flex items-center gap-2 px-2 sm:px-3 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        title="Sair"
                     >
                         <LogOut className="w-4 h-4" />
                     </button>

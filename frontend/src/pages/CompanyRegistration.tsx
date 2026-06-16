@@ -52,15 +52,6 @@ export default function CompanyRegistration() {
         queryFn: () => companiesApi.list(),
     });
 
-    const { data: users } = useQuery({
-        queryKey: ['users'],
-        queryFn: () => queryClient.ensureQueryData({
-            queryKey: ['users'],
-            queryFn: () => import('../api').then(api => api.usersApi.list())
-        }),
-        enabled: isMaster && isModalOpen,
-    });
-
     const createMutation = useMutation({
         mutationFn: (data: any) => companiesApi.create(data),
         onSuccess: () => {

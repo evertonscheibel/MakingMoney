@@ -72,7 +72,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
         <aside
             className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800
+        fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] xl:w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800
         transform transition-transform duration-200 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         xl:translate-x-0
@@ -86,6 +86,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <button
                     onClick={onClose}
                     className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 xl:hidden"
+                    aria-label="Fechar menu"
                 >
                     <X className="w-5 h-5 text-gray-500" />
                 </button>
