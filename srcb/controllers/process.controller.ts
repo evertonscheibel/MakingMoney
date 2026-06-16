@@ -284,7 +284,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     if (!process.deliveryDate) { process.status = getPendingStatus(process.plannedDate, process.limitDate); }
 
     await process.save();
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as Record<string, unknown>, process.toObject() as Record<string, unknown>);
+    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: process });
 });
@@ -333,7 +333,7 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
     process.status = status;
     await process.save();
 
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as Record<string, unknown>, process.toObject() as Record<string, unknown>);
+    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: process, message: `Process delivered. Score: ${score}` });
 });
@@ -437,7 +437,7 @@ export const deleteProcess = asyncHandler(async (req: Request, res: Response): P
 
     const before = process.toObject();
     await process.deleteOne();
-    await auditAction(req, AuditAction.DELETE, EntityType.PROCESS, id as string, before as Record<string, unknown>, null);
+    await auditAction(req, AuditAction.DELETE, EntityType.PROCESS, id as string, before as unknown as Record<string, unknown>, null);
 
     res.json({ success: true, message: 'Process deleted successfully' });
 });
@@ -576,7 +576,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
     const updatedProcess = await Process.findById(id);
     if (!updatedProcess) { throw new AppError('Error following update', 500); }
 
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, updatedProcess._id.toString(), before as Record<string, unknown>, updatedProcess.toObject() as Record<string, unknown>);
+    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, updatedProcess._id.toString(), before as unknown as Record<string, unknown>, updatedProcess.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: updatedProcess });
 });
