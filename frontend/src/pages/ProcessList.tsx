@@ -454,8 +454,8 @@ export default function ProcessList() {
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
                                 <th className="w-[65px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
-                                <th className="w-auto min-w-[150px] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
-                                <th className="w-[210px] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
+                                <th className="w-auto min-w-[150px] lg:w-[350px] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
+                                <th className="w-auto min-w-[210px] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
                                 <th className="w-[90px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
                                 <th className="w-[90px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
                                 <th className="w-[100px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
@@ -470,7 +470,7 @@ export default function ProcessList() {
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
                                     <td className="w-[65px] font-mono text-sm text-center hidden sm:table-cell">{process.code}</td>
                                     <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
-                                    <td className="w-[210px] truncate max-w-[210px] hidden lg:table-cell" title={process.sector}>{process.sector}</td>
+                                    <td className="truncate hidden lg:table-cell" title={process.sector}>{process.sector}</td>
                                     <td className="w-[90px] text-sm text-center hidden sm:table-cell">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
