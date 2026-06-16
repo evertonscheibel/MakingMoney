@@ -451,39 +451,39 @@ export default function ProcessList() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                     </div>
                 ) : (
-                    <table className="table w-full px-2">
+                    <table className="table table-fixed w-full px-2">
                         <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="w-[80px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Código</th>
-                                <th className="min-w-[180px] bg-gray-50 dark:bg-gray-900 text-left">Título</th>
-                                <th className="w-[150px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-left">Setor</th>
-                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Planejado</th>
-                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 text-center">Limite</th>
-                                <th className="w-[120px] bg-gray-50 dark:bg-gray-900 text-center">Status</th>
-                                <th className="w-[130px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-center">Entrega</th>
-                                <th className="w-[140px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-left">Responsável</th>
-                                <th className="w-[90px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-center">Pontuação</th>
-                                <th className="w-[80px] sm:w-[160px] bg-gray-50 dark:bg-gray-900 text-center">Ações</th>
+                                <th className="w-[65px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Código</th>
+                                <th className="w-auto min-w-[150px] bg-gray-50 dark:bg-gray-900 text-left">Título</th>
+                                <th className="w-[210px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-left">Setor</th>
+                                <th className="w-[90px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Planejado</th>
+                                <th className="w-[90px] bg-gray-50 dark:bg-gray-900 text-center">Limite</th>
+                                <th className="w-[100px] bg-gray-50 dark:bg-gray-900 text-center">Status</th>
+                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-center">Entrega</th>
+                                <th className="w-[125px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-left">Responsável</th>
+                                <th className="w-[70px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-center">Pontuação</th>
+                                <th className="w-[145px] bg-gray-50 dark:bg-gray-900 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
-                                    <td className="w-[80px] font-mono text-xs font-medium text-center hidden sm:table-cell">{process.code}</td>
-                                    <td className="font-medium text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[250px] lg:max-w-[400px] xl:max-w-[550px]" title={process.title}>{process.title}</td>
-                                    <td className="w-[150px] truncate max-w-[150px] hidden lg:table-cell" title={process.sector}>{process.sector}</td>
-                                    <td className="w-[110px] text-sm text-center hidden sm:table-cell">
+                                    <td className="w-[65px] font-mono text-xs font-medium text-center hidden sm:table-cell">{process.code}</td>
+                                    <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
+                                    <td className="w-[210px] truncate max-w-[210px] hidden lg:table-cell" title={process.sector}>{process.sector}</td>
+                                    <td className="w-[90px] text-sm text-center hidden sm:table-cell">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[110px] text-sm text-center">
+                                    <td className="w-[90px] text-sm text-center">
                                         {new Date(process.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[120px] text-center">
+                                    <td className="w-[100px] text-center">
                                         <div className="flex justify-center">
                                             {getStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[130px] text-sm text-center hidden lg:table-cell">
+                                    <td className="w-[110px] text-sm text-center hidden lg:table-cell">
                                         <div className="flex flex-col gap-1 items-center">
                                             <span>
                                                 {process.deliveryDate
@@ -493,7 +493,7 @@ export default function ProcessList() {
                                             {getDeliveryStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[140px] text-sm hidden xl:table-cell">
+                                    <td className="w-[125px] text-sm hidden xl:table-cell">
                                         {(() => {
                                             const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
@@ -524,11 +524,11 @@ export default function ProcessList() {
                                             );
                                         })()}
                                     </td>
-                                    <td className="w-[90px] font-semibold hidden xl:table-cell text-center">
+                                    <td className="w-[70px] font-semibold hidden xl:table-cell text-center">
                                         {process.score !== null ? process.score : '-'}
                                     </td>
-                                    <td className="w-[80px] sm:w-[160px] text-center">
-                                        <div className="flex items-center justify-center gap-1">
+                                    <td className="w-[145px] text-center">
+                                        <div className="flex items-center justify-center gap-0.5">
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
@@ -536,7 +536,7 @@ export default function ProcessList() {
                                                         setSelectedProcess(process);
                                                         setShowDeliverModal(true);
                                                     }}
-                                                    className="p-1.5 text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20 rounded-md transition-colors"
+                                                    className="p-1 text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20 rounded-md transition-colors"
                                                     title="Confirmar Entrega"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
@@ -550,7 +550,7 @@ export default function ProcessList() {
                                                                 sendDeliveryEmailMutation.mutate(process._id);
                                                             }
                                                         }}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                                                        className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
                                                         disabled={sendDeliveryEmailMutation.isPending}
                                                         title="Enviar Email de Entrega"
                                                     >
@@ -563,7 +563,7 @@ export default function ProcessList() {
                                                                 revertDeliveryMutation.mutate({ id: process._id, reason });
                                                             }
                                                         }}
-                                                        className="p-1.5 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
+                                                        className="p-1 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
                                                         title="Desfazer Confirmação"
                                                     >
                                                         <XCircle className="w-4 h-4" />
@@ -578,7 +578,7 @@ export default function ProcessList() {
                                                             revertDeliveryMutation.mutate({ id: process._id, reason });
                                                         }
                                                     }}
-                                                    className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                                                    className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                                                     title="Reverter Entrega (Admin)"
                                                 >
                                                     <XCircle className="w-4 h-4" />
@@ -608,7 +608,7 @@ export default function ProcessList() {
                                                         setShowEmailModal(true);
                                                     }
                                                 }}
-                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 disabled={(sendEmailMutation.isPending && selectedProcess?._id === process._id) || (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)}
                                                 title={(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)
                                                     ? "Necessário confirmar entrega antes de enviar"
@@ -627,7 +627,7 @@ export default function ProcessList() {
                                                             });
                                                         }
                                                     }}
-                                                    className={`p-1.5 rounded-md transition-colors ${
+                                                    className={`p-1 rounded-md transition-colors ${
                                                         process.isActive === false
                                                             ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                                                             : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
@@ -648,7 +648,7 @@ export default function ProcessList() {
                                                             setSelectedProcess(process);
                                                             setShowModal(true);
                                                         }}
-                                                        className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                                                        className="p-1 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
                                                         title="Editar"
                                                     >
                                                         <Edit className="w-4 h-4" />
@@ -662,7 +662,7 @@ export default function ProcessList() {
                                                             deleteMutation.mutate(process._id);
                                                         }
                                                     }}
-                                                    className="p-1.5 text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
+                                                    className="p-1 text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
                                                     title="Excluir"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
