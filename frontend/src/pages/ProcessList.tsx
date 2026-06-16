@@ -454,13 +454,13 @@ export default function ProcessList() {
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
                                 <th className="w-[65px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
-                                <th className="w-auto min-w-[150px] lg:w-[350px] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
-                                <th className="w-auto min-w-[210px] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
+                                <th className="w-auto min-w-[150px] lg:w-[40%] xl:w-[45%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
+                                <th className="w-auto min-w-[210px] lg:w-[25%] xl:w-[20%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
                                 <th className="w-[90px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
                                 <th className="w-[90px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
                                 <th className="w-[100px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
                                 <th className="w-[110px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400">Entrega</th>
-                                <th className="w-[125px] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400">Responsável</th>
+                                <th className="w-auto min-w-[120px] xl:w-[15%] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400">Responsável</th>
                                 <th className="w-[70px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400">Pontuação</th>
                                 <th className="w-[145px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Ações</th>
                             </tr>
@@ -492,7 +492,7 @@ export default function ProcessList() {
                                             {getDeliveryStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[125px] text-sm hidden xl:table-cell">
+                                    <td className="text-sm hidden xl:table-cell">
                                         {(() => {
                                             const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
@@ -502,7 +502,7 @@ export default function ProcessList() {
                                             // First check if populated object name is available
                                             if (typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null && (process.responsibleUserId as any).name) {
                                                 return (
-                                                    <span className="truncate block max-w-[115px]" title={(process.responsibleUserId as any).name}>
+                                                    <span className="truncate block" title={(process.responsibleUserId as any).name}>
                                                         {(process.responsibleUserId as any).name}
                                                     </span>
                                                 );
@@ -511,7 +511,7 @@ export default function ProcessList() {
                                             // Fallback to finding in the users list
                                             const foundUser = users?.find(u => (u.id || u._id) === userId);
                                             return (
-                                                <span className="truncate block max-w-[115px]" title={foundUser?.name || 'Carregando...'}>
+                                                <span className="truncate block" title={foundUser?.name || 'Carregando...'}>
                                                     {foundUser?.name || 'Carregando...'}
                                                 </span>
                                             );
