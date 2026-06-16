@@ -454,37 +454,37 @@ export default function ProcessList() {
                     <table className="table w-full px-2">
                         <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="w-[80px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell">Código</th>
-                                <th className="min-w-[150px] bg-gray-50 dark:bg-gray-900">Título</th>
-                                <th className="w-[120px] bg-gray-50 dark:bg-gray-900 hidden 2xl:table-cell">Setor</th>
-                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell">Planejado</th>
-                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900">Limite</th>
-                                <th className="w-[120px] bg-gray-50 dark:bg-gray-900">Status</th>
-                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell">Entrega</th>
-                                <th className="w-[130px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell">Responsável</th>
-                                <th className="w-[80px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell">Pontuação</th>
+                                <th className="w-[80px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Código</th>
+                                <th className="min-w-[180px] bg-gray-50 dark:bg-gray-900 text-left">Título</th>
+                                <th className="w-[150px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-left">Setor</th>
+                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 hidden sm:table-cell text-center">Planejado</th>
+                                <th className="w-[110px] bg-gray-50 dark:bg-gray-900 text-center">Limite</th>
+                                <th className="w-[120px] bg-gray-50 dark:bg-gray-900 text-center">Status</th>
+                                <th className="w-[130px] bg-gray-50 dark:bg-gray-900 hidden lg:table-cell text-center">Entrega</th>
+                                <th className="w-[140px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-left">Responsável</th>
+                                <th className="w-[90px] bg-gray-50 dark:bg-gray-900 hidden xl:table-cell text-center">Pontuação</th>
                                 <th className="w-[80px] sm:w-[160px] bg-gray-50 dark:bg-gray-900 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
-                                    <td className="font-mono text-xs font-medium text-center hidden sm:table-cell">{process.code}</td>
-                                    <td className="font-medium text-gray-900 dark:text-white truncate max-w-[120px] sm:max-w-[200px]" title={process.title}>{process.title}</td>
-                                    <td className="truncate max-w-[120px] hidden 2xl:table-cell" title={process.sector}>{process.sector}</td>
-                                    <td className="text-sm hidden sm:table-cell">
+                                    <td className="w-[80px] font-mono text-xs font-medium text-center hidden sm:table-cell">{process.code}</td>
+                                    <td className="font-medium text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[250px] lg:max-w-[400px] xl:max-w-[550px]" title={process.title}>{process.title}</td>
+                                    <td className="w-[150px] truncate max-w-[150px] hidden lg:table-cell" title={process.sector}>{process.sector}</td>
+                                    <td className="w-[110px] text-sm text-center hidden sm:table-cell">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="text-sm">
+                                    <td className="w-[110px] text-sm text-center">
                                         {new Date(process.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[100px] sm:w-[120px]">
-                                        <div className="flex justify-center sm:justify-start">
+                                    <td className="w-[120px] text-center">
+                                        <div className="flex justify-center">
                                             {getStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="text-sm hidden lg:table-cell">
-                                        <div className="flex flex-col gap-1 items-start">
+                                    <td className="w-[130px] text-sm text-center hidden lg:table-cell">
+                                        <div className="flex flex-col gap-1 items-center">
                                             <span>
                                                 {process.deliveryDate
                                                     ? new Date(process.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
@@ -493,7 +493,7 @@ export default function ProcessList() {
                                             {getDeliveryStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="text-sm hidden xl:table-cell">
+                                    <td className="w-[140px] text-sm hidden xl:table-cell">
                                         {(() => {
                                             const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
@@ -504,7 +504,7 @@ export default function ProcessList() {
                                             if (typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null && (process.responsibleUserId as any).name) {
                                                 return (
                                                     <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                                                        <UserCircle className="w-3 h-3 flex-shrink-0" />
+                                                        <UserCircle className="w-3.5 h-3.5 flex-shrink-0" />
                                                         <span className="truncate max-w-[110px]" title={(process.responsibleUserId as any).name}>
                                                             {(process.responsibleUserId as any).name}
                                                         </span>
@@ -516,7 +516,7 @@ export default function ProcessList() {
                                             const foundUser = users?.find(u => (u.id || u._id) === userId);
                                             return (
                                                 <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                                                    <UserCircle className="w-3 h-3 flex-shrink-0" />
+                                                    <UserCircle className="w-3.5 h-3.5 flex-shrink-0" />
                                                     <span className="truncate max-w-[110px]" title={foundUser?.name || 'Carregando...'}>
                                                         {foundUser?.name || 'Carregando...'}
                                                     </span>
@@ -524,11 +524,11 @@ export default function ProcessList() {
                                             );
                                         })()}
                                     </td>
-                                    <td className="font-semibold hidden xl:table-cell text-center">
+                                    <td className="w-[90px] font-semibold hidden xl:table-cell text-center">
                                         {process.score !== null ? process.score : '-'}
                                     </td>
-                                    <td>
-                                        <div className="flex items-center justify-end gap-1">
+                                    <td className="w-[80px] sm:w-[160px] text-center">
+                                        <div className="flex items-center justify-center gap-1">
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
