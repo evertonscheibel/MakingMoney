@@ -15,7 +15,7 @@ validateConfig();
 const app = express();
 
 // Enable 'trust proxy' so express-rate-limit correctly identifies IPs behind reverse proxy (like Nginx)
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // Security middleware
 app.use(helmet());
