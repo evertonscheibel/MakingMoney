@@ -68,10 +68,10 @@ async function resetProcesses() {
         }
 
         // Add CONTROLADORIA to sectors if not present (case-insensitive check)
-        const hasControladoria = company.sectors.some(s => s.toUpperCase() === 'CONTROLADORIA');
+        const hasControladoria = company.sectors.some(s => s.name.toUpperCase() === 'CONTROLADORIA');
         if (!hasControladoria) {
             console.log('🏢 Adding "CONTROLADORIA" sector...');
-            company.sectors.push('CONTROLADORIA');
+            company.sectors.push({ name: 'CONTROLADORIA' });
             await company.save();
         }
 

@@ -34,7 +34,7 @@ const cycleRestorePointSchema = new Schema<ICycleRestorePoint>(
             default: Date.now,
         },
         processes: {
-            type: [Schema.Types.Mixed],
+            type: [Schema.Types.Mixed] as any,
             required: true,
         },
         cycleKPIs: {

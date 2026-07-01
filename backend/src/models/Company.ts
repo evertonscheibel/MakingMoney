@@ -33,7 +33,7 @@ const companySchema = new Schema<ICompanyDocument>(
             default: 'Padrão',
         },
         sectors: {
-            type: [{
+            type: ([{
                 name: {
                     type: String,
                     required: true,
@@ -45,7 +45,7 @@ const companySchema = new Schema<ICompanyDocument>(
                     default: null,
                 },
                 _id: { type: Schema.Types.ObjectId, auto: true }
-            }],
+            }] as any),
             default: [],
             validate: {
                 validator: function (v: any[]) {
