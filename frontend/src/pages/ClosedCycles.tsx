@@ -102,7 +102,7 @@ export default function ClosedCycles() {
         try {
             setSelectedCycle(cycleId);
             // Also restrict processes to those from CLOSED cycles
-            const query: any = { limit: 100, cycleStatus: 'CLOSED' };
+            const query: any = { limit: 100, cycleStatus: 'CLOSED', sortBy: 'plannedDate', sortOrder: 'asc' };
             if (cycleId.startsWith('month-')) {
                 query.month = month;
             } else {

@@ -45,6 +45,8 @@ export default function ProcessList() {
     const [searchParams] = useSearchParams();
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
     const [responsibleFilter, setResponsibleFilter] = useState('');
+    const [deliveryMode, setDeliveryMode] = useState<'ALL' | 'DELIVERED_FIRST' | 'NOT_DELIVERED_FIRST' | 'DELIVERED_ONLY' | 'NOT_DELIVERED_ONLY'>('ALL');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [newSectorName, setNewSectorName] = useState('');
     const [isAddingSector, setIsAddingSector] = useState(false);
     const [selectedSector, setSelectedSector] = useState('');
@@ -97,12 +99,15 @@ export default function ProcessList() {
     };
 
     const { data: processesData, isLoading } = useQuery({
-        queryKey: ['processes', { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter }],
+        queryKey: ['processes', { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter, deliveryMode, sortOrder }],
         queryFn: () => processesApi.list({
             search: search || undefined,
             sector: sectorFilter || undefined,
             status: statusFilter || undefined,
             responsibleUserId: responsibleFilter || undefined,
+            deliveryMode,
+            sortBy: 'plannedDate',
+            sortOrder,
         }),
         enabled: !!user?.activeCompanyId,
     });
@@ -437,6 +442,25 @@ export default function ProcessList() {
                                     <option key={u.id || u._id} value={u.id || u._id}>{u.name}</option>
                                 ))}
                             </select>
+                            <select
+                                value={deliveryMode}
+                                onChange={(e) => setDeliveryMode(e.target.value as typeof deliveryMode)}
+                                className="input flex-1 min-w-[150px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                                <option value="ALL">Todas entregas</option>
+                                <option value="DELIVERED_FIRST">Entregues primeiro</option>
+                                <option value="NOT_DELIVERED_FIRST">Não entregues primeiro</option>
+                                <option value="DELIVERED_ONLY">Somente entregues</option>
+                                <option value="NOT_DELIVERED_ONLY">Somente não entregues</option>
+                            </select>
+                            <select
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+                                className="input flex-1 min-w-[170px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                                <option value="asc">Data planejada crescente</option>
+                                <option value="desc">Data planejada decrescente</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -456,7 +480,7 @@ export default function ProcessList() {
                                 <th className="w-[70px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
                                 <th className="w-auto min-w-[150px] lg:w-[25%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
                                 <th className="w-auto min-w-[180px] lg:w-[15%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
+                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado {sortOrder === 'asc' ? '?' : '?'}</th>
                                 <th className="w-[110px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
                                 <th className="w-[125px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
                                 <th className="w-[130px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400">Entrega</th>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, authApi, companiesApi } from '../api';
 import { useAuth } from '../contexts';
+import { normalizeAllowedMenus } from '../utils/menuPermissions';
 import {
     Users,
     Plus,
@@ -46,11 +47,9 @@ const AVAILABLE_MENUS = [
     { id: 'processes', name: 'Processos' },
     { id: 'reports', name: 'Relatórios' },
     { id: 'process-curve', name: 'Curva de Processo' },
-    { id: 'bonuses', name: 'Bonificações' },
+    { id: 'bonus-report', name: 'Bonificações' },
     { id: 'cycle-history', name: 'Histórico de Ciclos' },
     { id: 'email-logs', name: 'Logs de Email' },
-    { id: 'email-simulator', name: 'Simulador Email' },
-    { id: 'ai-assistant', name: 'Assistente IA' },
     { id: 'users', name: 'Usuários' },
     { id: 'companies', name: 'Empresas' },
     { id: 'sectors', name: 'Setores' },
@@ -147,6 +146,7 @@ export default function UserList() {
 
         const payload = {
             ...formData,
+            allowedMenus: normalizeAllowedMenus(formData.allowedMenus),
             // If editing, exclude password if empty
             ...(selectedUser && !formData.password ? { password: undefined } : {}),
         };
@@ -168,7 +168,7 @@ export default function UserList() {
             email: userToEdit.email,
             password: '', // Don't show password
             roles: userToEdit.roles.filter(role => Object.values(UserRole).includes(role as UserRole)),
-            allowedMenus: userToEdit.allowedMenus || [],
+            allowedMenus: normalizeAllowedMenus(userToEdit.allowedMenus || []),
             allowedCompanyIds: userToEdit.allowedCompanyIds || [],
             sector: userToEdit.sector || '',
             sectors: userToEdit.sectors || [],
