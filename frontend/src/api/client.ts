@@ -48,7 +48,7 @@ api.interceptors.response.use(
 
 // Helper function for API calls
 export async function apiCall<T>(
-    method: 'get' | 'post' | 'put' | 'delete',
+    method: 'get' | 'post' | 'put' | 'patch' | 'delete',
     url: string,
     data?: unknown
 ): Promise<T> {

@@ -14,6 +14,8 @@ import {
     Building2,
     Menu,
     Clock,
+    AlertTriangle,
+    ChevronDown,
 } from 'lucide-react';
 import { UserRole, User } from '../types';
 
@@ -92,6 +94,17 @@ export default function UserList() {
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!),
         enabled: !!user?.activeCompanyId && isModalOpen,
+    });
+
+    // Flags users whose sector permissions don't match any real sector name
+    // in a company they access — the exact failure mode that makes processes
+    // silently "disappear" for that user.
+    const [showSectorAudit, setShowSectorAudit] = useState(false);
+    const { data: sectorIssues } = useQuery({
+        queryKey: ['sectorAudit'],
+        queryFn: () => usersApi.sectorAudit(),
+        enabled: isMaster,
+        staleTime: 5 * 60 * 1000,
     });
 
     const createMutation = useMutation({
@@ -244,6 +257,36 @@ export default function UserList() {
                     Novo Usuário
                 </button>
             </div>
+
+            {sectorIssues && sectorIssues.length > 0 && (
+                <div className="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50 dark:bg-orange-900/20">
+                    <button
+                        onClick={() => setShowSectorAudit(!showSectorAudit)}
+                        className="w-full flex items-center justify-between gap-3 p-4 text-left"
+                    >
+                        <div className="flex items-center gap-2 text-sm text-orange-800 dark:text-orange-300">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <strong>{sectorIssues.length}</strong> permissão(ões) de setor não batem com nenhum setor real da empresa — esses usuários não veem processos lá.
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-orange-500 flex-shrink-0 transition-transform ${showSectorAudit ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showSectorAudit && (
+                        <div className="px-4 pb-4 space-y-2">
+                            {sectorIssues.map((issue, i) => (
+                                <div key={i} className="text-sm bg-white dark:bg-gray-800 rounded-lg p-3 border border-orange-100 dark:border-orange-900/30">
+                                    <p className="font-medium text-gray-900 dark:text-white">{issue.userName} <span className="text-gray-500 dark:text-gray-400 font-normal">({issue.userEmail})</span></p>
+                                    <p className="text-gray-600 dark:text-gray-300 mt-1">
+                                        Empresa <strong>{issue.companyName}</strong>: tem acesso a{' '}
+                                        <span className="font-mono text-orange-700 dark:text-orange-400">{issue.effectiveSectors.join(', ')}</span>,
+                                        mas a empresa só tem{' '}
+                                        <span className="font-mono">{issue.companySectors.join(', ') || '(nenhum setor cadastrado)'}</span>.
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="card">
                 <div className="flex items-center gap-4 mb-6">

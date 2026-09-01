@@ -5,6 +5,7 @@ import { asyncHandler, NotFoundError, ConflictError } from '../middleware/errors
 import { auditAction } from '../middleware/audit';
 import { AuditAction, EntityType, UserRole } from '../types';
 import { Types } from 'mongoose';
+import { logger } from '../config';
 
 // Validation rules
 export const createCompanyValidation = [
@@ -334,6 +335,8 @@ export const updateSector = asyncHandler(async (req: Request, res: Response): Pr
     }
 
     // Check data integrity
+    let renamedFrom: string | null = null;
+    let renamedTo: string | null = null;
     if (name) {
         const normalizedName = name.trim();
         // Check for duplicate name if changing
@@ -343,6 +346,11 @@ export const updateSector = asyncHandler(async (req: Request, res: Response): Pr
         if (exists) {
             throw new ConflictError('Sector name already exists');
         }
+        const previousName = company.sectors[sectorIndex].name;
+        if (previousName && previousName !== normalizedName) {
+            renamedFrom = previousName;
+            renamedTo = normalizedName;
+        }
         company.sectors[sectorIndex].name = normalizedName;
     }
 
@@ -351,6 +359,47 @@ export const updateSector = asyncHandler(async (req: Request, res: Response): Pr
     }
 
     await company.save();
+
+    // Cascade the rename everywhere this sector name is referenced for this
+    // company, so permissions and historical records never silently drift
+    // out of sync with the sector's current name (the root cause behind
+    // users losing visibility into processes after a sector was renamed).
+    if (renamedFrom && renamedTo) {
+        const { Process, Cycle } = await import('../models');
+
+        const [processResult, cycleResult, userLegacyResult] = await Promise.all([
+            Process.updateMany({ companyId: id, sector: renamedFrom }, { $set: { sector: renamedTo } }),
+            Cycle.updateMany({ companyId: id, sector: renamedFrom }, { $set: { sector: renamedTo } }),
+            User.updateMany(
+                { sectors: renamedFrom },
+                { $set: { 'sectors.$[elem]': renamedTo } },
+                { arrayFilters: [{ elem: renamedFrom }] }
+            ),
+        ]);
+
+        // companyAccess.sectors is per-company: only touch entries for THIS company.
+        const usersWithScopedAccess = await User.find({
+            'companyAccess.companyId': id,
+            'companyAccess.sectors': renamedFrom,
+        });
+        await Promise.all(
+            usersWithScopedAccess.map((u) => {
+                const entry = (u.companyAccess || []).find((a: any) => a.companyId.toString() === id);
+                if (entry && Array.isArray((entry as any).sectors)) {
+                    (entry as any).sectors = (entry as any).sectors.map((s: string) => (s === renamedFrom ? renamedTo : s));
+                    u.markModified('companyAccess');
+                    return u.save();
+                }
+                return Promise.resolve();
+            })
+        );
+
+        logger.info(
+            `Sector renamed for company ${id}: "${renamedFrom}" -> "${renamedTo}". ` +
+            `Processes updated: ${processResult.modifiedCount}, cycles updated: ${cycleResult.modifiedCount}, ` +
+            `users (legacy sectors) updated: ${userLegacyResult.modifiedCount}, users (per-company sectors) updated: ${usersWithScopedAccess.length}.`
+        );
+    }
 
     res.json({
         success: true,

@@ -7,13 +7,14 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "jest --coverage",
+    "test": "jest --config jest.config.js",
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
     "seed": "ts-node src/seeds/index.ts",
     "restore:db": "ts-node src/scripts/restore_from_json_export.ts",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "migrate:sectors": "ts-node --transpile-only src/scripts/migrate_sectors_per_company.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

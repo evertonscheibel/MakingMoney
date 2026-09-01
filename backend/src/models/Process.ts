@@ -83,6 +83,20 @@ const processSchema = new Schema<IProcessDocument>(
             type: Boolean,
             default: true,
         },
+        deactivationReason: {
+            type: String,
+            default: null,
+            trim: true,
+        },
+        deactivatedBy: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+        },
+        deactivatedAt: {
+            type: Date,
+            default: null,
+        },
         deliveryStatus: {
             type: String,
             enum: Object.values(DeliveryStatus),

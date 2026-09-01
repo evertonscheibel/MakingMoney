@@ -208,6 +208,10 @@ export const processesApi = {
         return apiCall<Process>('post', `/processes/${id}/revert-delivery`, { reason });
     },
 
+    setActive: async (id: string, isActive: boolean, reason: string): Promise<Process> => {
+        return apiCall<Process>('patch', `/processes/${id}/active`, { isActive, reason });
+    },
+
     importProcesses: async (file: File, data: { sector: string; plannedDate: string; limitDate: string; responsibleUserId?: string }): Promise<any> => {
         const formData = new FormData();
         formData.append('file', file);
@@ -331,6 +335,18 @@ export const usersApi = {
 
     delete: async (id: string): Promise<void> => {
         return apiCall<void>('delete', `/users/${id}`);
+    },
+
+    sectorAudit: async (): Promise<Array<{
+        userId: string;
+        userName: string;
+        userEmail: string;
+        companyId: string;
+        companyName: string;
+        effectiveSectors: string[];
+        companySectors: string[];
+    }>> => {
+        return apiCall('get', '/users/sector-audit');
     },
 };
 

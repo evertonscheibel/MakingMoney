@@ -204,6 +204,17 @@ export default function ProcessList() {
         },
     });
 
+    const setActiveMutation = useMutation({
+        mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
+            processesApi.setActive(id, isActive, reason),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['processes'] });
+        },
+        onError: (error: any) => {
+            alert(`Erro ao alterar status do processo: ${error.response?.data?.message || error.message}`);
+        },
+    });
+
     const deleteMutation = useMutation({
         mutationFn: (id: string) => processesApi.delete(id),
         onSuccess: () => {
@@ -675,11 +686,14 @@ export default function ProcessList() {
                                             {isMasterUser && (
                                                 <button
                                                     onClick={() => {
-                                                        const actionText = process.isActive === false ? 'ativar' : 'inativar';
-                                                        if (confirm(`Tem certeza que deseja ${actionText} este processo?`)) {
-                                                            updateMutation.mutate({
+                                                        const activating = process.isActive === false;
+                                                        const actionText = activating ? 'ativar' : 'inativar';
+                                                        const reason = prompt(`Motivo para ${actionText} este processo:`);
+                                                        if (reason && reason.trim()) {
+                                                            setActiveMutation.mutate({
                                                                 id: process._id,
-                                                                data: { isActive: process.isActive === false }
+                                                                isActive: activating,
+                                                                reason: reason.trim(),
                                                             });
                                                         }
                                                     }}

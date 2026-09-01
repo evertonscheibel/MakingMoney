@@ -92,7 +92,13 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
  * POST /api/auth/register
  */
 export const register = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { name, email, password, position, department, sector, roles, allowedCompanyIds } = req.body;
+    const { name, email, password, position, department, sector, sectors, roles, allowedCompanyIds } = req.body;
+    // Company context this user is being created from — the sector checkboxes
+    // in the "Novo Usuário" form are scoped to this one company only. This
+    // route is also used for public self-signup (no auth/requireCompany
+    // middleware attached), so req.companyId is never set here; read the
+    // header directly instead, which the authenticated admin UI always sends.
+    const creatingCompanyId = req.companyId || (req.headers['x-company-id'] as string | undefined);
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -112,10 +118,12 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
         position,
         department,
         sector,
+        sectors: sectors || [],
         roles: roles || [UserRole.OPERATOR],
         companyAccess: allowedCompanyIds?.map((cid: string) => ({
             companyId: cid,
-            role: roles?.[0] || UserRole.OPERATOR
+            role: roles?.[0] || UserRole.OPERATOR,
+            sectors: cid === creatingCompanyId ? (sectors || []) : [],
         })) || [],
         isEmailVerified: false,
         emailVerificationToken: verificationCode,

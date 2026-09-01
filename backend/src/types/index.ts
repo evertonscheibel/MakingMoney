@@ -10,6 +10,11 @@ export enum UserRole {
 export interface ICompanyAccess {
     companyId: Types.ObjectId;
     role: UserRole;
+    // Optional, scoped to THIS company only. When absent/empty, callers should
+    // fall back to the user's legacy global `sectors`/`sector` fields for
+    // backward compatibility with accounts not yet migrated to per-company
+    // sector permissions. See utils/permissions.ts#getEffectiveSectors.
+    sectors?: string[];
 }
 
 export enum CycleStatus {
@@ -153,6 +158,9 @@ export interface IProcess {
     status: ProcessStatus;
     responsibleUserId: Types.ObjectId | null;
     isActive?: boolean;
+    deactivationReason?: string | null;
+    deactivatedBy?: Types.ObjectId | null;
+    deactivatedAt?: Date | null;
 }
 
 export interface IEvaluationRules {
@@ -296,7 +304,7 @@ export interface AuthenticatedUser {
     email: string;
     roles: UserRole[];
     activeCompanyId: string | null;
-    companyAccess: { companyId: string; role: string }[];
+    companyAccess: { companyId: string; role: string; sectors?: string[] }[];
     position?: string;
     department?: string;
     sector?: string;

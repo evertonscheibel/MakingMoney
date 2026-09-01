@@ -48,6 +48,13 @@ const userSchema = new Schema<IUserDocument>(
                 enum: Object.values(UserRole),
                 default: UserRole.OPERATOR
             },
+            // Sector permissions scoped to this specific company. When empty,
+            // the legacy global `sectors`/`sector` fields below are used as a
+            // fallback (see utils/permissions.ts#getEffectiveSectors).
+            sectors: {
+                type: [String],
+                default: [],
+            },
             _id: false
         }],
         activeCompanyId: {

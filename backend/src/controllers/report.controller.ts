@@ -4,7 +4,7 @@ import { query } from 'express-validator';
 // import { Cycle, Process, Company } from '../models';
 import { asyncHandler, NotFoundError, UnauthorizedError, ForbiddenError } from '../middleware/errors';
 import { CycleStatus, ProcessStatus, UserRole } from '../types';
-import { calculatePercentage, calculateAverage } from '../utils';
+import { calculatePercentage, calculateAverage, getEffectiveSectors } from '../utils';
 
 export const reportValidation = [
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
@@ -136,7 +136,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const combinedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
 
     // Enforce sector restriction for non-masters
     if (!isAdminOrMaster) {
@@ -256,7 +256,7 @@ export const getSectorRanking = asyncHandler(async (req: Request, res: Response)
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const combinedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
 
     if (!isAdminOrMaster) {
         if (combinedSectors.length === 0) {
@@ -339,7 +339,7 @@ export const getStatusDistribution = asyncHandler(async (req: Request, res: Resp
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const combinedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
 
     if (!isAdminOrMaster) {
         if (combinedSectors.length === 0) { throw new ForbiddenError('No sectors assigned to this user'); }
@@ -425,7 +425,7 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const combinedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
 
     if (!isAdminOrMaster) {
         if (combinedSectors.length === 0) { throw new ForbiddenError('No sectors assigned to this user'); }
@@ -539,7 +539,7 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const combinedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
 
     if (!isAdminOrMaster) {
         if (combinedSectors.length === 0) { throw new ForbiddenError('No sectors assigned to this user'); }

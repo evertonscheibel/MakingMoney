@@ -19,6 +19,8 @@ import {
     sendDeliveryEmail,
     revertDelivery,
     revertDeliveryValidation,
+    setProcessActive,
+    setProcessActiveValidation,
 } from '../controllers/process.controller';
 
 const router = Router();
@@ -36,6 +38,9 @@ router.post('/', validate(createProcessValidation), createProcess);
 
 // Update process
 router.put('/:id', validate(updateProcessValidation), updateProcess);
+
+// Activate/deactivate (dedicated, reason-required — never bundled into a generic edit)
+router.patch('/:id/active', validate(setProcessActiveValidation), setProcessActive);
 
 // Mark as delivered (legacy - still works)
 router.put('/:id/deliver', validate(deliverProcessValidation), deliverProcess);

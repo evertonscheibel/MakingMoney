@@ -1,4 +1,5 @@
 export { calculateScore, calculateDeviationDays, getPendingStatus } from './scoring';
+export { getEffectiveSectors } from './permissions';
 export {
     extractProcessCode,
     formatDate,

@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
-import { User } from '../models';
+import { User, Company } from '../models';
 import { asyncHandler, NotFoundError } from '../middleware/errors';
 import { UserRole } from '../types';
 import { body } from 'express-validator';
+import { getEffectiveSectors } from '../utils';
 
 /**
  * List all users that have access to the current active company
@@ -68,6 +69,9 @@ export const updateUser = asyncHandler(async (req: Request, res: Response): Prom
     const { id } = req.params;
     const { roles, allowedMenus, allowedCompanyIds, name, sector, sectors, baseSalary, password } = req.body;
     const currentUser = req.user!;
+    // Company context this edit is happening in — sector permissions submitted
+    // in this request are scoped to THIS company only (see getEffectiveSectors).
+    const editingCompanyId = req.companyId;
 
     // Authorization check
     const isMaster = currentUser.roles.includes(UserRole.MASTER);
@@ -84,7 +88,6 @@ export const updateUser = asyncHandler(async (req: Request, res: Response): Prom
 
     if (name) userToUpdate.name = name;
     if (sector !== undefined) userToUpdate.sector = sector;
-    if (sectors !== undefined) (userToUpdate as any).sectors = sectors;
     if (baseSalary !== undefined) userToUpdate.baseSalary = baseSalary;
     if (roles) {
         userToUpdate.roles = roles.filter((role: any) => Object.values(UserRole).includes(role));
@@ -96,15 +99,36 @@ export const updateUser = asyncHandler(async (req: Request, res: Response): Prom
         userToUpdate.passwordHash = password;
     }
 
-    // Map allowedCompanyIds to companyAccess
+    // Map allowedCompanyIds to companyAccess, PRESERVING each existing entry's
+    // role/sectors for companies that remain — a full overwrite here used to
+    // silently wipe out per-company sector permissions on every save.
     if (allowedCompanyIds) {
-        // Use the primary role selected by the user, or default to OPERATOR/current role
         const primaryRole = (roles && roles.length > 0) ? roles[0] : UserRole.OPERATOR;
+        const existingByCompany = new Map(
+            (userToUpdate.companyAccess || []).map((a: any) => [a.companyId.toString(), a])
+        );
 
-        userToUpdate.companyAccess = allowedCompanyIds.map((companyId: string) => ({
-            companyId: companyId,
-            role: primaryRole // Assign global role to each company
-        }));
+        userToUpdate.companyAccess = allowedCompanyIds.map((companyId: string) => {
+            const existing: any = existingByCompany.get(companyId);
+            return {
+                companyId,
+                role: primaryRole,
+                sectors: existing?.sectors || [],
+            };
+        }) as any;
+    }
+
+    // Sector permissions submitted here apply only to `editingCompanyId` —
+    // never to every company this user can access.
+    if (sectors !== undefined && editingCompanyId) {
+        (userToUpdate as any).sectors = sectors; // legacy fallback for un-migrated reads
+        const entry: any = (userToUpdate.companyAccess || []).find(
+            (a: any) => a.companyId.toString() === editingCompanyId
+        );
+        if (entry) {
+            entry.sectors = sectors;
+            userToUpdate.markModified('companyAccess');
+        }
     }
 
     await userToUpdate.save();
@@ -148,3 +172,80 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response): Prom
     });
 });
 
+
+/**
+ * Sector permission audit — flags users whose effective sector permissions
+ * for a company they can access don't match ANY real sector name in that
+ * company. This is exactly the failure mode that made processes appear to
+ * "disappear": a user's sector list (e.g. "Contabilidade/Fiscal", valid for
+ * one company) silently stops matching after a sector rename or when it was
+ * never valid for a different company sharing that user.
+ *
+ * GET /api/users/sector-audit
+ */
+export const sectorAudit = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const currentUser = req.user!;
+    if (!currentUser.roles.includes(UserRole.MASTER)) {
+        throw new NotFoundError('User');
+    }
+
+    const [users, companies] = await Promise.all([
+        User.find({}).select('name email roles companyAccess sectors sector'),
+        Company.find({}).select('name sectors'),
+    ]);
+    const companiesById = new Map(companies.map((c) => [c._id.toString(), c]));
+
+    const issues: Array<{
+        userId: string;
+        userName: string;
+        userEmail: string;
+        companyId: string;
+        companyName: string;
+        effectiveSectors: string[];
+        companySectors: string[];
+    }> = [];
+
+    for (const user of users) {
+        if (user.roles.includes(UserRole.MASTER)) continue; // MASTER bypasses sector restriction entirely
+
+        for (const access of user.companyAccess || []) {
+            const company = companiesById.get(access.companyId.toString());
+            if (!company) continue; // dangling reference to a deleted company — different issue
+
+            const companyRole = access.role;
+            if (companyRole === UserRole.MASTER) continue;
+
+            const effectiveSectors = getEffectiveSectors(
+                {
+                    companyAccess: (user.companyAccess || []).map((a: any) => ({
+                        companyId: a.companyId.toString(),
+                        role: a.role,
+                        sectors: a.sectors || [],
+                    })),
+                    sectors: (user as any).sectors,
+                    sector: user.sector,
+                },
+                access.companyId.toString()
+            );
+
+            if (effectiveSectors.length === 0) continue; // no sectors claimed at all — not this bug class
+
+            const companySectorNames = company.sectors.map((s) => s.name);
+            const hasAnyMatch = effectiveSectors.some((s) => companySectorNames.includes(s));
+
+            if (!hasAnyMatch) {
+                issues.push({
+                    userId: user._id.toString(),
+                    userName: user.name,
+                    userEmail: user.email,
+                    companyId: company._id.toString(),
+                    companyName: company.name,
+                    effectiveSectors,
+                    companySectors: companySectorNames,
+                });
+            }
+        }
+    }
+
+    res.json({ success: true, data: issues });
+});

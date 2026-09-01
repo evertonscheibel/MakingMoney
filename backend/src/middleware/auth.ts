@@ -57,7 +57,8 @@ export async function authenticate(
                     .filter(a => a && a.companyId)
                     .map(a => ({
                         companyId: a.companyId.toString(),
-                        role: a.role
+                        role: a.role,
+                        sectors: (a as any).sectors || [],
                     })),
                 sector: user.sector,
                 sectors: (user as any).sectors || [],

@@ -4,7 +4,7 @@ import { asyncHandler, NotFoundError, AppError } from '../middleware/errors';
 import { auditAction } from '../middleware/audit';
 import { AuditAction, EntityType, CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
 import { Types } from 'mongoose';
-import { calculateScore, getPendingStatus } from '../utils';
+import { calculateScore, getPendingStatus, getEffectiveSectors } from '../utils';
 import { logger } from '../config';
 import { EmailService } from '../services/email.service';
 import { getProcessDeliveryEmailTemplate } from '../services/email/templates/processDelivery.template';
@@ -44,6 +44,12 @@ export const confirmDeliveryValidation = [
 
 export const revertDeliveryValidation = [
     param('id').isMongoId().withMessage('Invalid process ID'),
+    body('reason').trim().notEmpty().withMessage('Reason is required'),
+];
+
+export const setProcessActiveValidation = [
+    param('id').isMongoId().withMessage('Invalid process ID'),
+    body('isActive').isBoolean().withMessage('isActive must be a boolean'),
     body('reason').trim().notEmpty().withMessage('Reason is required'),
 ];
 
@@ -101,7 +107,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
         .filter(s => s.managerId && s.managerId.toString() === userId)
         .map(s => s.name) || [];
 
-    const allUserSectors = [...new Set([...managedSectors, ...(userSectors || []), ...(legacySector ? [legacySector] : [])])];
+    const allUserSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
     let allowedSectors: string[] | null = null;
     if (isMaster) {
@@ -201,7 +207,7 @@ export const getProcess = asyncHandler(async (req: Request, res: Response): Prom
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
@@ -215,7 +221,11 @@ export const getProcess = asyncHandler(async (req: Request, res: Response): Prom
  */
 export const createProcess = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const companyId = req.companyId!;
-    const { code, title, sector, owner, plannedDate, limitDate, responsibleUserId, isActive } = req.body;
+    // isActive is intentionally not read from the body: activation state is
+    // managed exclusively by the dedicated PATCH /processes/:id/active route,
+    // never bundled into a generic create/edit payload. Every new process
+    // starts active.
+    const { code, title, sector, owner, plannedDate, limitDate, responsibleUserId } = req.body;
 
     const { Process, Cycle } = await import('../models');
     const { getPendingStatus } = await import('../utils');
@@ -252,11 +262,9 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
         finalCode = nextCodeNum.toString().padStart(3, '0');
     }
 
-    const finalIsActive = isActive !== undefined ? (isMaster ? isActive === true || isActive === 'true' : true) : true;
-
     const process = await Process.create({
         companyId, cycleId: cycle._id, code: finalCode, title, sector, owner: owner || null, plannedDate: planned, limitDate: limit, status: getPendingStatus(planned, limit), responsibleUserId: responsibleUserId || null,
-        isActive: finalIsActive,
+        isActive: true,
     });
 
     await auditAction(req, AuditAction.CREATE, EntityType.PROCESS, process._id.toString(), null, process.toObject() as any);
@@ -295,19 +303,19 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
         if (!allowedSectors.includes(process.sector)) { throw new AppError('You do not have permission to modify processes in this sector', 403); }
         if (updates.sector && !allowedSectors.includes(updates.sector)) { throw new AppError('You cannot move a process to a sector you do not have access to', 403); }
     }
 
+    // isActive is intentionally NOT handled here: activating/deactivating a
+    // process is a separate, deliberate action with its own audited reason,
+    // never a side effect of editing title/dates/sector. See setProcessActive
+    // and PATCH /processes/:id/active. Bundling it into this generic update
+    // previously caused every process a MASTER saved to be silently
+    // deactivated, since this form has no "active" field at all.
     const before = process.toObject();
-    if (updates.isActive !== undefined) {
-        if (!isMaster) {
-            throw new AppError('Apenas usuários Master podem ativar ou inativar processos.', 403);
-        }
-        process.isActive = updates.isActive === true || updates.isActive === 'true';
-    }
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
     if (updates.sector) process.sector = updates.sector;
@@ -321,6 +329,54 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
 
     await process.save();
     await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
+
+    res.json({ success: true, data: process });
+});
+
+/**
+ * Activate or deactivate a process — the ONLY path allowed to change
+ * isActive. Kept separate from updateProcess (and requiring a reason) on
+ * purpose: a generic "edit title/dates" form should never be able to
+ * silently deactivate a process, which is exactly what happened before this
+ * endpoint existed.
+ * PATCH /api/processes/:id/active
+ */
+export const setProcessActive = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { userId, roles: globalRoles, companyAccess } = req.user!;
+    const companyId = req.companyId!;
+    const { isActive, reason } = req.body;
+
+    const { Process } = await import('../models');
+
+    const process = await Process.findOne({ _id: id, companyId });
+    if (!process) { throw new NotFoundError('Process'); }
+
+    const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
+    const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
+    const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
+
+    if (!isMaster) {
+        throw new AppError('Apenas usuários Master podem ativar ou inativar processos.', 403);
+    }
+
+    const before = process.toObject();
+    const nextIsActive = isActive === true || isActive === 'true';
+
+    process.isActive = nextIsActive;
+    (process as any).deactivationReason = nextIsActive ? null : reason;
+    (process as any).deactivatedBy = nextIsActive ? null : userId;
+    (process as any).deactivatedAt = nextIsActive ? null : new Date();
+
+    await process.save();
+    await auditAction(
+        req,
+        AuditAction.UPDATE,
+        EntityType.PROCESS,
+        process._id.toString(),
+        before as unknown as Record<string, unknown>,
+        process.toObject() as unknown as Record<string, unknown>
+    );
 
     res.json({ success: true, data: process });
 });
@@ -348,7 +404,7 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
 
@@ -397,7 +453,7 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
 
     const company = await Company.findById(companyId);
     const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-    const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
     if (!isMaster) {
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
@@ -463,7 +519,7 @@ export const deleteProcess = asyncHandler(async (req: Request, res: Response): P
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('You do not have permission to delete processes in this sector', 403); }
         if (!isManager) { throw new AppError('Operators are not allowed to delete processes', 403); }
     }
@@ -497,7 +553,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
     const company = await Company.findById(companyId);
     const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-    const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+    const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
     if (!isMaster && !allowedSectors.includes(process.sector)) {
         throw new AppError('Permission denied for this process sector', 403);
@@ -539,7 +595,7 @@ export const sendDeliveryEmail = asyncHandler(async (req: Request, res: Response
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Permission denied', 403); }
     }
 
@@ -584,7 +640,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
     if (!isMaster) {
         const company = await Company.findById(companyId);
         const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
-        const allowedSectors = [...new Set([...(userSectors || []), ...(legacySector ? [legacySector] : []), ...managedSectors])];
+        const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Permission denied', 403); }
     }
 
