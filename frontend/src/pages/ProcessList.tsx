@@ -513,39 +513,39 @@ export default function ProcessList() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                     </div>
                 ) : (
-                    <table className="table table-auto w-full px-2">
+                    <table className="table table-fixed w-full px-2">
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
-                                <th className="w-[70px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
-                                <th className="w-auto min-w-[150px] lg:w-[25%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400 truncate">Título</th>
-                                <th className="w-auto min-w-[180px] lg:w-[15%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Setor</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Planejado {sortOrder === 'asc' ? '↑' : '↓'}</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Limite</th>
-                                <th className="w-[125px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Status</th>
-                                <th className="w-[130px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Entrega</th>
-                                <th className="w-[95px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Pontuação</th>
-                                <th className="w-[160px] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Responsável</th>
-                                <th className="w-[150px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Ações</th>
+                                <th className="w-[6%] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
+                                <th className="w-[18%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400 truncate">Título</th>
+                                <th className="w-[12%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Setor</th>
+                                <th className="w-[9%] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Planejado {sortOrder === 'asc' ? '↑' : '↓'}</th>
+                                <th className="w-[9%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Limite</th>
+                                <th className="w-[10%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Status</th>
+                                <th className="w-[10%] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Entrega</th>
+                                <th className="w-[7%] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Pontuação</th>
+                                <th className="w-[11%] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Responsável</th>
+                                <th className="w-[8%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
-                                    <td className="w-[70px] font-mono text-sm text-center hidden sm:table-cell">{process.code}</td>
+                                    <td className="font-mono text-sm text-center hidden sm:table-cell truncate">{process.code}</td>
                                     <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
                                     <td className="truncate hidden lg:table-cell" title={process.sector}>{process.sector}</td>
-                                    <td className="w-[110px] text-sm text-center hidden sm:table-cell">
+                                    <td className="text-sm text-center hidden sm:table-cell truncate">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[110px] text-sm text-center">
+                                    <td className="text-sm text-center truncate">
                                         {new Date(process.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
-                                    <td className="w-[125px] text-center">
+                                    <td className="text-center">
                                         <div className="flex justify-center">
                                             {getStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[130px] text-sm text-center hidden lg:table-cell">
+                                    <td className="text-sm text-center hidden lg:table-cell">
                                         <div className="flex flex-col gap-1 items-center">
                                             <span>
                                                 {process.deliveryDate
@@ -555,10 +555,10 @@ export default function ProcessList() {
                                             {getDeliveryStatusBadge(process)}
                                         </div>
                                     </td>
-                                    <td className="w-[95px] font-semibold hidden xl:table-cell text-center">
+                                    <td className="font-semibold hidden xl:table-cell text-center truncate">
                                         {process.score !== null ? process.score : '-'}
                                     </td>
-                                    <td className="w-[160px] text-sm hidden xl:table-cell">
+                                    <td className="text-sm hidden xl:table-cell truncate">
                                         {(() => {
                                             const userId = typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
@@ -583,8 +583,8 @@ export default function ProcessList() {
                                             );
                                         })()}
                                     </td>
-                                    <td className="w-[150px] text-center">
-                                        <div className="flex items-center justify-center gap-0.5">
+                                    <td className="text-center">
+                                        <div className="flex items-center justify-center gap-0.5 flex-wrap">
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
