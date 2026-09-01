@@ -163,6 +163,9 @@ export const processesApi = {
         status?: string;
         search?: string;
         responsibleUserId?: string;
+        deliveryMode?: 'ALL' | 'DELIVERED_FIRST' | 'NOT_DELIVERED_FIRST' | 'DELIVERED_ONLY' | 'NOT_DELIVERED_ONLY';
+        sortBy?: 'plannedDate' | 'limitDate' | 'deliveryDate' | 'code' | 'title' | 'sector' | 'status';
+        sortOrder?: 'asc' | 'desc';
         page?: number;
         limit?: number;
     }): Promise<PaginatedResponse<Process>> => {

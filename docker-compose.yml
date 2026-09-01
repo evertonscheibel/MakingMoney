@@ -15,6 +15,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -31,7 +32,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=production
       - PORT=3001
-      - FRONTEND_URL=http://localhost:8080
+      - FRONTEND_URL=https://chronos.bridgegestao.app.br
     networks:
       - gestaopro-network
     restart: unless-stopped
@@ -40,7 +41,7 @@ services:
     build: ./frontend
     container_name: gestaopro-frontend
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - backend
     networks:

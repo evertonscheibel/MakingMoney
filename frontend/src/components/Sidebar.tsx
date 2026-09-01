@@ -20,6 +20,7 @@ import { UserRole } from '../types';
 
 import logo from '../assets/logo.png';
 import chronosLogo from '../assets/chronos-logo-dark.png';
+import { hasMenuAccess } from '../utils/menuPermissions';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -69,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return items.filter((item) => {
             if (item.alwaysVisible) return true;
             if (isMaster) return true;
-            return user?.allowedMenus?.includes(item.id);
+            return hasMenuAccess(user?.allowedMenus, item.id);
         });
     };
 
@@ -211,4 +212,3 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </aside>
     );
 }
-

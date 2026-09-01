@@ -51,6 +51,9 @@ export const listProcessesValidation = [
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
     query('sector').optional().trim(),
     query('status').optional().isIn(Object.values(ProcessStatus)),
+    query('deliveryMode').optional().isIn(['ALL', 'DELIVERED_FIRST', 'NOT_DELIVERED_FIRST', 'DELIVERED_ONLY', 'NOT_DELIVERED_ONLY']),
+    query('sortBy').optional().isIn(['plannedDate', 'limitDate', 'deliveryDate', 'code', 'title', 'sector', 'status']),
+    query('sortOrder').optional().isIn(['asc', 'desc']),
 ];
 
 /**
@@ -60,7 +63,19 @@ export const listProcessesValidation = [
 export const listProcesses = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { roles: globalRoles, userId, sectors: userSectors, sector: legacySector, companyAccess } = req.user!;
     const companyId = req.companyId!;
-    const { cycleId, sector, status, search, responsibleUserId, active, page = '1', limit = '100' } = req.query;
+    const {
+        cycleId,
+        sector,
+        status,
+        search,
+        responsibleUserId,
+        active,
+        deliveryMode = 'ALL',
+        sortBy = 'plannedDate',
+        sortOrder = 'asc',
+        page = '1',
+        limit = '100'
+    } = req.query;
 
     const { Process, Cycle, Company } = await import('../models');
 
@@ -126,6 +141,13 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     }
 
     if (status) { filter.status = status; }
+
+    if (deliveryMode === 'DELIVERED_ONLY') {
+        filter.deliveryDate = { $ne: null };
+    } else if (deliveryMode === 'NOT_DELIVERED_ONLY') {
+        filter.deliveryDate = null;
+    }
+
     if (search) {
         filter.$or = [{ code: { $regex: search, $options: 'i' } }, { title: { $regex: search, $options: 'i' } }];
     }
@@ -134,8 +156,22 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     const limitNum = Math.min(parseInt(limit as string, 10), 100);
     const skip = (pageNum - 1) * limitNum;
 
+    const normalizedSortBy = ['plannedDate', 'limitDate', 'deliveryDate', 'code', 'title', 'sector', 'status'].includes(sortBy as string)
+        ? (sortBy as string)
+        : 'plannedDate';
+    const normalizedSortOrder = sortOrder === 'desc' ? -1 : 1;
+
+    const sort: Record<string, 1 | -1> = {};
+    if (deliveryMode === 'DELIVERED_FIRST') {
+        sort.deliveryDate = -1;
+    } else if (deliveryMode === 'NOT_DELIVERED_FIRST') {
+        sort.deliveryDate = 1;
+    }
+    sort[normalizedSortBy] = normalizedSortOrder;
+    sort.code = 1;
+
     const [processes, total] = await Promise.all([
-        Process.find(filter).sort({ code: 1 }).skip(skip).limit(limitNum),
+        Process.find(filter).sort(sort).skip(skip).limit(limitNum),
         Process.countDocuments(filter),
     ]);
 

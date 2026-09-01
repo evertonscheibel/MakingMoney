@@ -21,6 +21,7 @@ import ResetPassword from './pages/ResetPassword';
 import SectorList from './pages/SectorList';
 import BonusReport from './pages/BonusReport';
 import Help from './pages/Help';
+import { hasMenuAccess } from './utils/menuPermissions';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
@@ -65,7 +66,7 @@ function PermissionRoute({ children, id }: { children: React.ReactNode; id: stri
         return <>{children}</>;
     }
 
-    if (!user?.allowedMenus?.includes(id)) {
+    if (!hasMenuAccess(user?.allowedMenus, id)) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center">
@@ -125,4 +126,3 @@ function App() {
 }
 
 export default App;
-
