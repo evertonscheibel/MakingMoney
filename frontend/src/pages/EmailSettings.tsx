@@ -17,7 +17,7 @@ export default function EmailSettings() {
         securityMode: SMTPSecurityMode.STARTTLS,
         user: '',
         pass: '',
-        fromName: 'KRONOS',
+        fromName: 'Metodo Chronos',
         fromEmail: '',
         recipients: [] as string[],
     });
@@ -39,7 +39,7 @@ export default function EmailSettings() {
                     securityMode: config.securityMode || SMTPSecurityMode.STARTTLS,
                     user: config.auth?.user || '',
                     pass: '********', // Password mask
-                    fromName: config.fromName || 'KRONOS',
+                    fromName: config.fromName || 'Metodo Chronos',
                     fromEmail: config.fromEmail || '',
                     recipients: config.recipients || [],
                 });

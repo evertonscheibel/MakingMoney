@@ -196,7 +196,7 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
     }
 
     const cycle = await Cycle.findOne({ companyId, sector, status: CycleStatus.OPEN });
-    if (!cycle) { throw new AppError('No open cycle for this sector.', 400); }
+    if (!cycle) { throw new AppError(`Nenhum ciclo aberto para o setor "${sector}". Abra um ciclo para este setor no Dashboard antes de criar processos.`, 400); }
 
     const existing = await Process.findOne({ companyId, cycleId: cycle._id, code: code?.toUpperCase() });
     if (code && existing) { throw new AppError(`Processo ${code} já existe neste ciclo para o setor ${sector}.`, 409); }

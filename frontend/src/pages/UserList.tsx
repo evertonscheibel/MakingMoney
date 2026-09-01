@@ -46,17 +46,15 @@ const AVAILABLE_MENUS = [
     { id: 'processes', name: 'Processos' },
     { id: 'reports', name: 'Relatórios' },
     { id: 'process-curve', name: 'Curva de Processo' },
-    { id: 'bonuses', name: 'Bonificações' },
+    { id: 'bonus-report', name: 'Bonificações' },
     { id: 'cycle-history', name: 'Histórico de Ciclos' },
     { id: 'email-logs', name: 'Logs de Email' },
-    { id: 'email-simulator', name: 'Simulador Email' },
-    { id: 'ai-assistant', name: 'Assistente IA' },
-    { id: 'users', name: 'Usuários' },
-    { id: 'companies', name: 'Empresas' },
-    { id: 'sectors', name: 'Setores' },
     { id: 'evaluation-parameters', name: 'Parâmetros de Avaliação' },
     { id: 'email-settings', name: 'Config. Email' },
     { id: 'system-logs', name: 'Logs do Sistema' },
+    // 'users', 'companies' e 'sectors' foram removidos desta lista: essas páginas são
+    // restritas a usuários MASTER via AdminRoute e ignoram allowedMenus, então marcar
+    // esses checkboxes para um usuário não-MASTER não concede acesso (UI enganosa).
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -128,6 +126,9 @@ export default function UserList() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
             alert('Usuário removido com sucesso!');
+        },
+        onError: (error: any) => {
+            alert(`Erro ao excluir usuário: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -345,14 +346,14 @@ export default function UserList() {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {selectedUser ? 'Editar Usuário' : 'Novo Usuário'}
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-500"
+                                className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300"
                             >
                                 <XCircle className="w-6 h-6" />
                             </button>
@@ -413,7 +414,7 @@ export default function UserList() {
                                 )}
                                 <div className="md:col-span-2">
                                     <label className="label">Setores Responsáveis</label>
-                                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border border-gray-200 rounded-lg">
+                                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                         {activeCompany?.sectors?.map((s: any) => {
                                             const sectorName = typeof s === 'string' ? s : s.name;
                                             return (
@@ -422,9 +423,9 @@ export default function UserList() {
                                                         type="checkbox"
                                                         checked={formData.sectors.includes(sectorName)}
                                                         onChange={() => toggleSector(sectorName)}
-                                                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                        className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-primary-600 focus:ring-primary-500"
                                                     />
-                                                    <span className="text-sm text-gray-700 truncate">{sectorName}</span>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{sectorName}</span>
                                                 </label>
                                             );
                                         })}
@@ -435,8 +436,8 @@ export default function UserList() {
                                 </div>
                             </div>
 
-                            <div className="border-t border-gray-100 pt-4">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                     <Shield className="w-4 h-4" /> Funções (Roles)
                                 </h3>
                                 <div className="flex flex-wrap gap-3">
@@ -446,17 +447,17 @@ export default function UserList() {
                                                 type="checkbox"
                                                 checked={formData.roles.includes(role)}
                                                 onChange={() => toggleRole(role)}
-                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-primary-600 focus:ring-primary-500"
                                             />
-                                            <span className="text-sm text-gray-700">{ROLE_LABELS[role] || role}</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">{ROLE_LABELS[role] || role}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
                             {isMaster && (
-                                <div className="border-t border-gray-100 pt-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                         <Building2 className="w-4 h-4" /> Acesso a Empresas
                                     </h3>
                                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
@@ -466,17 +467,17 @@ export default function UserList() {
                                                     type="checkbox"
                                                     checked={formData.allowedCompanyIds.includes(company.id || company._id || '')}
                                                     onChange={() => toggleCompany(company.id || company._id || '')}
-                                                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                    className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-primary-600 focus:ring-primary-500"
                                                 />
-                                                <span className="text-sm text-gray-700 truncate">{company.name}</span>
+                                                <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{company.name}</span>
                                             </label>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            <div className="border-t border-gray-100 pt-4">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                     <Menu className="w-4 h-4" /> Permissões de Menu
                                 </h3>
                                 <div className="grid grid-cols-2 gap-2">
@@ -486,15 +487,15 @@ export default function UserList() {
                                                 type="checkbox"
                                                 checked={formData.allowedMenus.includes(menu.id)}
                                                 onChange={() => toggleMenu(menu.id)}
-                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-primary-600 focus:ring-primary-500"
                                             />
-                                            <span className="text-sm text-gray-700">{menu.name}</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">{menu.name}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}

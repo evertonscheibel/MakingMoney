@@ -34,12 +34,12 @@ export default function Register() {
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="text-center mb-6">
-                    <p className="text-primary-700 font-bold tracking-widest text-3xl">KRONOS</p>
+                    <p className="text-primary-700 font-bold tracking-widest text-3xl">CHRONOS</p>
                 </div>
-                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900">
+                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-900">
                     Crie sua conta
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-600">
+                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-600">
                     Ou{' '}
                     <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
                         faça login se já tiver uma conta

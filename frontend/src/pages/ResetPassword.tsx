@@ -46,14 +46,14 @@ export default function ResetPassword() {
             <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
                 <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                     <div className="mb-6">
-                        <p className="text-primary-700 font-bold tracking-widest text-3xl">KRONOS</p>
+                        <p className="text-primary-700 font-bold tracking-widest text-3xl">CHRONOS</p>
                     </div>
                     <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
                         <div className="rounded-full bg-green-100 p-3 mx-auto w-fit mb-4">
                             <CheckCircle className="h-6 w-6 text-green-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Senha alterada!</h2>
-                        <p className="text-gray-600 mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-900 mb-2">Senha alterada!</h2>
+                        <p className="text-gray-600 dark:text-gray-600 mb-6">
                             Sua senha foi redefinida com sucesso. Você será redirecionado para o login em instantes.
                         </p>
                         <Link
@@ -72,12 +72,12 @@ export default function ResetPassword() {
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="text-center mb-6">
-                    <p className="text-primary-700 font-bold tracking-widest text-3xl">KRONOS</p>
+                    <p className="text-primary-700 font-bold tracking-widest text-3xl">CHRONOS</p>
                 </div>
-                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900">
+                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-900">
                     Criar nova senha
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-600">
+                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-600">
                     Escolha uma senha segura para sua conta.
                 </p>
             </div>

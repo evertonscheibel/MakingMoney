@@ -13,6 +13,7 @@ import {
     MailOpen,
     History,
     Award,
+    HelpCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { UserRole } from '../types';
@@ -55,11 +56,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 { id: 'system-logs', name: 'Logs do Sistema', href: '/system-logs', icon: ClipboardList },
                 { id: 'email-logs', name: 'Logs de Email', href: '/email-logs', icon: MailOpen },
             ]
+        },
+        {
+            title: 'Suporte',
+            items: [
+                { id: 'help', name: 'Ajuda', href: '/help', icon: HelpCircle, alwaysVisible: true },
+            ]
         }
     ];
 
     const filterItems = (items: any[]) => {
         return items.filter((item) => {
+            if (item.alwaysVisible) return true;
             if (isMaster) return true;
             return user?.allowedMenus?.includes(item.id);
         });
@@ -74,12 +82,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             className={`
         fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] xl:w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800
         transform transition-transform duration-200 ease-in-out
+        flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         xl:translate-x-0
       `}
         >
             {/* Header */}
-            <div className="flex items-center justify-between h-24 px-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex-none flex items-center justify-between h-24 px-4 border-b border-gray-200 dark:border-gray-800">
                 <div className="flex-1">
                     <img src={chronosLogo} alt="Metodo Chronos Logo" className="w-full h-auto object-contain" />
                 </div>
@@ -93,7 +102,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* Company Selector */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex-none p-4 border-b border-gray-200 dark:border-gray-800">
                 <div className="relative">
                     <button
                         onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
@@ -146,7 +155,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-16rem)] scrollbar-thin">
+            <nav className="flex-1 min-h-0 p-4 space-y-6 overflow-y-auto scrollbar-thin">
                 {menuGroups.map((group) => {
                     const filteredItems = filterItems(group.items);
                     if (filteredItems.length === 0) return null;
@@ -180,7 +189,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </nav>
 
             {/* User info at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+            <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center">
                         <span className="text-primary-700 dark:text-primary-400 font-medium text-sm">

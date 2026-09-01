@@ -20,6 +20,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import SectorList from './pages/SectorList';
 import BonusReport from './pages/BonusReport';
+import Help from './pages/Help';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
@@ -102,6 +103,7 @@ function App() {
                                         <Route path="/process-curve" element={<PermissionRoute id="process-curve"><ProcessCurveReport /></PermissionRoute>} />
                                         <Route path="/bonus-report" element={<PermissionRoute id="bonus-report"><BonusReport /></PermissionRoute>} />
                                         <Route path="/system-logs" element={<PermissionRoute id="system-logs"><AuditLogs /></PermissionRoute>} />
+                                        <Route path="/help" element={<Help />} />
 
                                         {/* Admin-only routes */}
                                         <Route path="/settings/evaluation" element={<AdminRoute><EvaluationSettings /></AdminRoute>} />

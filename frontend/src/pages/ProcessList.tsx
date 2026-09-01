@@ -65,7 +65,7 @@ export default function ProcessList() {
     const isManager = user?.roles.includes(UserRole.MANAGER) || user?.roles.includes(UserRole.MASTER);
     const isMasterUser = user?.roles.includes(UserRole.MASTER);
 
-    const { data: currentCycle } = useQuery({
+    const { data: currentCycle, isFetched: isCurrentCycleFetched } = useQuery({
         queryKey: ['currentCycle', sectorFilter],
         queryFn: () => cyclesApi.getCurrent(sectorFilter || undefined),
         enabled: !!user?.activeCompanyId,
@@ -96,6 +96,27 @@ export default function ProcessList() {
         closeCycleMutation.mutate({ overrides, openNext, sector: sectorFilter });
     };
 
+    const openCycleMutation = useMutation({
+        mutationFn: ({ month, sector }: { month: string; sector: string }) => cyclesApi.open(month, sector),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['currentCycle'] });
+            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            alert('Ciclo aberto com sucesso!');
+        },
+        onError: (error: any) => {
+            alert(`Erro ao abrir ciclo: ${error.response?.data?.message || error.message}`);
+        },
+    });
+
+    const handleOpenCycle = () => {
+        if (!sectorFilter) return;
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (confirm(`Deseja abrir o ciclo de ${month} para o setor "${sectorFilter}"?`)) {
+            openCycleMutation.mutate({ month, sector: sectorFilter });
+        }
+    };
+
     const { data: processesData, isLoading } = useQuery({
         queryKey: ['processes', { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter }],
         queryFn: () => processesApi.list({
@@ -122,6 +143,9 @@ export default function ProcessList() {
             queryClient.invalidateQueries({ queryKey: ['processes'] });
             setShowModal(false);
         },
+        onError: (error: any) => {
+            alert(`Erro ao criar processo: ${error.response?.data?.message || error.message}`);
+        },
     });
 
     const updateMutation = useMutation({
@@ -132,16 +156,8 @@ export default function ProcessList() {
             setShowModal(false);
             setSelectedProcess(null);
         },
-    });
-
-    const deliverMutation = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: DeliverForm }) =>
-            processesApi.deliver(id, data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
-            queryClient.invalidateQueries({ queryKey: ['summary'] });
-            setShowDeliverModal(false);
-            setSelectedProcess(null);
+        onError: (error: any) => {
+            alert(`Erro ao salvar processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -156,6 +172,9 @@ export default function ProcessList() {
 
             // Auto-send delivery email
             sendDeliveryEmailMutation.mutate(variables.id);
+        },
+        onError: (error: any) => {
+            alert(`Erro ao confirmar entrega: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -184,6 +203,9 @@ export default function ProcessList() {
         mutationFn: (id: string) => processesApi.delete(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['processes'] });
+        },
+        onError: (error: any) => {
+            alert(`Erro ao excluir processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -287,9 +309,10 @@ export default function ProcessList() {
             responsibleUserId: formData.get('responsibleUserId') as string || undefined,
         };
 
-        if (isMasterUser) {
-            data.isActive = formData.get('isActive') === 'true';
-        }
+        // isActive is intentionally NOT set here: there is no field for it in this form.
+        // Activating/deactivating a process is handled exclusively by the dedicated
+        // Eye/EyeOff toggle button below, which sends only { isActive } in its own request.
+        // Including it here previously forced every MASTER create/edit to isActive:false.
 
         if (selectedProcess) {
             updateMutation.mutate({ id: selectedProcess._id, data });
@@ -440,6 +463,22 @@ export default function ProcessList() {
                         </div>
                     </div>
                 </div>
+
+                {isManager && sectorFilter && isCurrentCycleFetched && !currentCycle && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300">
+                        <div className="flex items-center gap-2 text-sm">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            Nenhum ciclo aberto para o setor <strong>{sectorFilter}</strong>. É preciso abrir um ciclo antes de criar processos.
+                        </div>
+                        <button
+                            onClick={handleOpenCycle}
+                            disabled={openCycleMutation.isPending}
+                            className="btn-secondary text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/40 flex-shrink-0"
+                        >
+                            {openCycleMutation.isPending ? 'Abrindo...' : 'Abrir Ciclo'}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Table Container - Scrollable */}
@@ -450,19 +489,19 @@ export default function ProcessList() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                     </div>
                 ) : (
-                    <table className="table table-fixed w-full px-2">
+                    <table className="table table-auto w-full px-2">
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
-                                <th className="w-[70px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Código</th>
-                                <th className="w-auto min-w-[150px] lg:w-[25%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">Título</th>
-                                <th className="w-auto min-w-[180px] lg:w-[15%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400">Setor</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400">Planejado</th>
-                                <th className="w-[110px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Limite</th>
-                                <th className="w-[125px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Status</th>
-                                <th className="w-[130px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400">Entrega</th>
-                                <th className="w-[95px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400">Pontuação</th>
-                                <th className="w-[160px] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400">Responsável</th>
-                                <th className="w-[150px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400">Ações</th>
+                                <th className="w-[70px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
+                                <th className="w-auto min-w-[150px] lg:w-[25%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400 truncate">Título</th>
+                                <th className="w-auto min-w-[180px] lg:w-[15%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Setor</th>
+                                <th className="w-[110px] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Planejado</th>
+                                <th className="w-[110px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Limite</th>
+                                <th className="w-[125px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Status</th>
+                                <th className="w-[130px] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Entrega</th>
+                                <th className="w-[95px] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Pontuação</th>
+                                <th className="w-[160px] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Responsável</th>
+                                <th className="w-[150px] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -916,10 +955,10 @@ export default function ProcessList() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={deliverMutation.isPending}
+                                        disabled={confirmDeliveryMutation.isPending}
                                         className="btn-success"
                                     >
-                                        {deliverMutation.isPending ? 'Salvando...' : 'Confirmar Entrega'}
+                                        {confirmDeliveryMutation.isPending ? 'Salvando...' : 'Confirmar Entrega'}
                                     </button>
                                 </div>
                             </form>

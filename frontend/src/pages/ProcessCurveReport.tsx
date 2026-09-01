@@ -160,7 +160,7 @@ export default function ProcessCurveReport() {
                     <select
                         value={effectiveSector}
                         onChange={(e) => setSelectedSector(e.target.value)}
-                        className="select py-1.5"
+                        className="input py-1.5 w-auto"
                     >
                         {(!isStrictManager) && <option value="">Todos os Setores</option>}
                         {(isStrictManager) ? (
@@ -179,7 +179,7 @@ export default function ProcessCurveReport() {
                     <select
                         value={selectedUserId}
                         onChange={(e) => setSelectedUserId(e.target.value)}
-                        className="select py-1.5"
+                        className="input py-1.5 w-auto"
                     >
                         <option value="">Todos os Operadores</option>
                         {users?.map(u => (

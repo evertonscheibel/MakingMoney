@@ -181,7 +181,7 @@ export default function SectorList() {
                             placeholder="Buscar setores..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input pl-10 w-full"
+                            className="input pl-10 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         />
                     </div>
                 </div>
@@ -189,10 +189,10 @@ export default function SectorList() {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-gray-200">
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Nome do Setor</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Gestor Responsável</th>
-                                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600">Ações</th>
+                            <tr className="border-b border-gray-200 dark:border-gray-700">
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Nome do Setor</th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Gestor Responsável</th>
+                                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -204,18 +204,18 @@ export default function SectorList() {
                                 </tr>
                             ) : (
                                 filteredSectors.map((sector: any) => (
-                                    <tr key={sector._id} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <tr key={sector._id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60">
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400">
                                                     <Building2 className="w-4 h-4" />
                                                 </div>
-                                                <span className="font-medium text-gray-900">{sector.name}</span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{sector.name}</span>
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
                                             {sector.managerId ? (
-                                                <div className="flex items-center gap-2 text-gray-700">
+                                                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                                                     <User className="w-4 h-4 text-gray-400" />
                                                     {/* Ideally we would populate managerName, but for now we might only have ID if not populated. 
                                                        Let's rely on backend 'me' population. ActiveCompany doesn't auto-populate managerId in AuthController/me.
@@ -242,14 +242,14 @@ export default function SectorList() {
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
                                                     onClick={() => handleEdit(sector)}
-                                                    className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
+                                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                                                     title="Editar"
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(sector._id)}
-                                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                                     title="Excluir"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -267,14 +267,14 @@ export default function SectorList() {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+                        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {selectedSector ? 'Editar Setor' : 'Novo Setor'}
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-500"
+                                className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300"
                             >
                                 <XCircle className="w-6 h-6" />
                             </button>

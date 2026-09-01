@@ -58,6 +58,10 @@ export default function EvaluationSettings() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['evaluationActive'] });
             queryClient.invalidateQueries({ queryKey: ['evaluationHistory'] });
+            alert('Parâmetros de avaliação salvos com sucesso!');
+        },
+        onError: (error: any) => {
+            alert(`Erro ao salvar parâmetros: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -70,6 +74,9 @@ export default function EvaluationSettings() {
         }) => evaluationApi.simulate(data),
         onSuccess: (result) => {
             setSimulateResult(result.result);
+        },
+        onError: (error: any) => {
+            alert(`Erro ao simular pontuação: ${error.response?.data?.message || error.message}`);
         },
     });
 

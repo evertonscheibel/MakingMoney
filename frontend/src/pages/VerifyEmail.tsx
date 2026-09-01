@@ -60,12 +60,12 @@ export default function VerifyEmail() {
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="text-center mb-6">
-                    <p className="text-primary-700 font-bold tracking-widest text-3xl">KRONOS</p>
+                    <p className="text-primary-700 font-bold tracking-widest text-3xl">CHRONOS</p>
                 </div>
-                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900">
+                <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-900">
                     Verifique seu e-mail
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-600">
+                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-600">
                     Enviamos um código de 6 dígitos para <span className="font-semibold text-gray-900">{email}</span>
                 </p>
             </div>
@@ -77,8 +77,8 @@ export default function VerifyEmail() {
                             <div className="rounded-full bg-green-100 p-3 mx-auto w-fit mb-4">
                                 <CheckCircle className="h-6 w-6 text-green-600" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900">{message}</h3>
-                            <p className="mt-2 text-sm text-gray-500">Redirecionando para o login...</p>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-900">{message}</h3>
+                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">Redirecionando para o login...</p>
                         </div>
                     ) : (
                         <form className="space-y-6" onSubmit={handleSubmit}>

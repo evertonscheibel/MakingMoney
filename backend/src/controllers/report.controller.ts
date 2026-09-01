@@ -272,7 +272,14 @@ export const getSectorRanking = asyncHandler(async (req: Request, res: Response)
     const cycles = await resolveCycles(req, isAdminOrMaster, combinedSectors);
 
     if (cycles.length === 0) {
-        throw new NotFoundError('Cycle');
+        res.json({
+            success: true,
+            data: {
+                cycleMonth: period ? period as string : 'Nenhum Ciclo',
+                ranking: [],
+            },
+        });
+        return;
     }
 
     const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
@@ -343,7 +350,17 @@ export const getStatusDistribution = asyncHandler(async (req: Request, res: Resp
 
     const cycles = await resolveCycles(req, isAdminOrMaster, combinedSectors);
 
-    if (cycles.length === 0) { throw new NotFoundError('Cycle'); }
+    if (cycles.length === 0) {
+        res.json({
+            success: true,
+            data: {
+                cycleMonth: period ? period as string : 'Nenhum Ciclo',
+                total: 0,
+                distribution: Object.values(ProcessStatus).map((status) => ({ status, count: 0, percentage: 0 })),
+            },
+        });
+        return;
+    }
 
     const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
 
@@ -419,7 +436,18 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
 
     const cycles = await resolveCycles(req, isAdminOrMaster, combinedSectors);
 
-    if (cycles.length === 0) { throw new NotFoundError('Cycle'); }
+    if (cycles.length === 0) {
+        res.json({
+            success: true,
+            data: {
+                cycle: { id: 'none', month: 'Nenhum Ciclo', status: CycleStatus.CLOSED },
+                totalProcesses: 0,
+                bySector: {},
+                generatedAt: new Date().toISOString(),
+            },
+        });
+        return;
+    }
 
     const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
     if (sector) { filter.sector = sector; }

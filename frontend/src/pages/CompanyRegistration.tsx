@@ -85,14 +85,17 @@ export default function CompanyRegistration() {
             queryClient.invalidateQueries({ queryKey: ['companies'] });
             alert('Empresa removida com sucesso!');
         },
+        onError: (error: any) => {
+            alert(`Erro ao remover empresa: ${error.response?.data?.message || error.message}`);
+        },
     });
 
     if (!isMaster) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center">
-                    <h2 className="text-xl font-bold text-gray-900">Acesso Negado</h2>
-                    <p className="text-gray-500">Apenas usuários MASTER podem acessar esta página.</p>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Acesso Negado</h2>
+                    <p className="text-gray-500 dark:text-gray-400">Apenas usuários MASTER podem acessar esta página.</p>
                 </div>
             </div>
         );
@@ -152,8 +155,8 @@ export default function CompanyRegistration() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Gestão de Empresas</h1>
-                    <p className="text-gray-500">Cadastre e gerencie as empresas do sistema</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Empresas</h1>
+                    <p className="text-gray-500 dark:text-gray-400">Cadastre e gerencie as empresas do sistema</p>
                 </div>
                 <button
                     onClick={() => {
@@ -177,7 +180,7 @@ export default function CompanyRegistration() {
                             placeholder="Buscar empresas..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input pl-10 w-full"
+                            className="input pl-10 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         />
                     </div>
                 </div>
@@ -185,13 +188,13 @@ export default function CompanyRegistration() {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-gray-200">
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Empresa</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">CNPJ</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Cidade/UF</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Contrato</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
-                                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600">Ações</th>
+                            <tr className="border-b border-gray-200 dark:border-gray-700">
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Empresa</th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">CNPJ</th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Cidade/UF</th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Contrato</th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Status</th>
+                                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -209,37 +212,37 @@ export default function CompanyRegistration() {
                                 </tr>
                             ) : (
                                 filteredCompanies?.map((company) => (
-                                    <tr key={company.id || company._id} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <tr key={company.id || company._id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60">
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
+                                                <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/40 rounded-lg flex items-center justify-center text-primary-600 dark:text-primary-400">
                                                     <Building2 className="w-5 h-5" />
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{company.name}</p>
-                                                    <p className="text-xs text-gray-500">{company.sectors.length} setores</p>
+                                                    <p className="font-medium text-gray-900 dark:text-white">{company.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{company.sectors.length} setores</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600">
+                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             {company.cnpj || '-'}
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600">
+                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             {company.address?.city ? `${company.address.city}/${company.address.state}` : '-'}
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600">
+                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             <div>
                                                 <p>{company.modality || 'Padrão'}</p>
-                                                <p className="text-xs text-gray-500">{company.contractDuration || 12} meses</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-500">{company.contractDuration || 12} meses</p>
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
                                             {company.isActive ? (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400">
                                                     Ativo
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
                                                     Inativo
                                                 </span>
                                             )}
@@ -248,14 +251,14 @@ export default function CompanyRegistration() {
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
                                                     onClick={() => handleEdit(company)}
-                                                    className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
+                                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                                                     title="Editar"
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete((company.id || company._id) as string)}
-                                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                                     title="Excluir"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -273,14 +276,14 @@ export default function CompanyRegistration() {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {selectedCompany ? 'Editar Empresa' : 'Nova Empresa'}
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-500"
+                                className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300"
                             >
                                 <XCircle className="w-6 h-6" />
                             </button>
@@ -310,8 +313,8 @@ export default function CompanyRegistration() {
                                 </div>
                             </div>
 
-                            <div className="border-t border-gray-100 pt-4">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                     <Building2 className="w-4 h-4" /> Endereço
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -365,8 +368,8 @@ export default function CompanyRegistration() {
                                 </div>
                             </div>
 
-                            <div className="border-t border-gray-100 pt-4">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                                     <FileText className="w-4 h-4" /> Contrato
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -397,7 +400,7 @@ export default function CompanyRegistration() {
 
 
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
