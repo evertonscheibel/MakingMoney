@@ -32,13 +32,13 @@ async function seed(): Promise<void> {
         console.log('🏢 Creating companies...');
         const company1 = await Company.create({
             name: 'Empresa Demo',
-            sectors: ['Financeiro', 'RH', 'TI', 'Comercial'],
+            sectors: ['Financeiro', 'RH', 'TI', 'Comercial'].map(name => ({ name })),
             isActive: true,
         });
 
         const company2 = await Company.create({
             name: 'Empresa Teste',
-            sectors: ['Administrativo', 'Produção', 'Logística'],
+            sectors: ['Administrativo', 'Produção', 'Logística'].map(name => ({ name })),
             isActive: true,
         });
 
@@ -104,13 +104,16 @@ async function seed(): Promise<void> {
         // Create current cycle
         console.log('📅 Creating cycle...');
         const currentMonth = getCurrentMonth();
-        const cycle = await Cycle.create({
+        const sectors = company1.sectors.map(sector => sector.name);
+        const cycles = await Cycle.create(sectors.map(sector => ({
             companyId: company1._id,
             month: currentMonth,
+            sector,
             status: CycleStatus.OPEN,
             openedAt: new Date(),
-        });
-        console.log(`   Created cycle: ${currentMonth}`);
+        })));
+        const cycleBySector = new Map(cycles.map(cycle => [cycle.sector, cycle]));
+        console.log(`   Created ${cycles.length} cycles for ${currentMonth}`);
 
         // Create sample processes
         console.log('📋 Creating sample processes...');
@@ -121,73 +124,89 @@ async function seed(): Promise<void> {
                 title: 'Fechamento Contábil Mensal',
                 sector: 'Financeiro',
                 owner: 'João Silva',
-                plannedOffset: -5,
-                limitOffset: 10,
+                plannedDay: 2,
+                limitDay: 7,
+                deliveryDay: 6,
+                status: ProcessStatus.ON_TIME,
+                score: 100,
             },
             {
                 code: '102',
                 title: 'Conciliação Bancária',
                 sector: 'Financeiro',
                 owner: 'Maria Santos',
-                plannedOffset: 0,
-                limitOffset: 5,
+                plannedDay: 8,
+                limitDay: 12,
+                status: ProcessStatus.PENDING,
             },
             {
                 code: '201',
                 title: 'Processamento de Folha',
                 sector: 'RH',
                 owner: 'Ana Costa',
-                plannedOffset: -3,
-                limitOffset: 7,
+                plannedDay: 4,
+                limitDay: 10,
+                deliveryDay: 11,
+                status: ProcessStatus.LATE,
+                score: 75,
             },
             {
                 code: '202',
                 title: 'Atualização de Benefícios',
                 sector: 'RH',
                 owner: 'Pedro Lima',
-                plannedOffset: 2,
-                limitOffset: 15,
+                plannedDay: 14,
+                limitDay: 19,
+                status: ProcessStatus.PENDING,
             },
             {
                 code: '301',
                 title: 'Backup de Sistemas',
                 sector: 'TI',
                 owner: 'Carlos Oliveira',
-                plannedOffset: -7,
-                limitOffset: 3,
+                plannedDay: 1,
+                limitDay: 5,
+                status: ProcessStatus.CRITICAL,
             },
             {
                 code: '302',
                 title: 'Atualização de Servidores',
                 sector: 'TI',
                 owner: 'Lucas Souza',
-                plannedOffset: 5,
-                limitOffset: 20,
+                plannedDay: 16,
+                limitDay: 23,
+                status: ProcessStatus.PENDING,
             },
             {
                 code: '401',
                 title: 'Relatório de Vendas',
                 sector: 'Comercial',
                 owner: 'Fernanda Rocha',
-                plannedOffset: -2,
-                limitOffset: 8,
+                plannedDay: 9,
+                limitDay: 15,
+                deliveryDay: 14,
+                status: ProcessStatus.ON_TIME,
+                score: 100,
             },
             {
                 code: '402',
                 title: 'Análise de Metas',
                 sector: 'Comercial',
                 owner: 'Roberto Alves',
-                plannedOffset: 3,
-                limitOffset: 12,
+                plannedDay: 21,
+                limitDay: 28,
+                status: ProcessStatus.PENDING,
             },
         ];
 
         for (const data of processData) {
-            const plannedDate = new Date(today);
-            plannedDate.setDate(plannedDate.getDate() + data.plannedOffset);
-
-            const limitDate = new Date(today);
-            limitDate.setDate(limitDate.getDate() + data.limitOffset);
+            const plannedDate = new Date(today.getFullYear(), today.getMonth(), data.plannedDay, 12);
+            const limitDate = new Date(today.getFullYear(), today.getMonth(), data.limitDay, 12);
+            const deliveryDate = data.deliveryDay
+                ? new Date(today.getFullYear(), today.getMonth(), data.deliveryDay, 12)
+                : null;
+            const cycle = cycleBySector.get(data.sector);
+            if (!cycle) throw new Error(`Cycle not found for sector ${data.sector}`);
 
             // Assign some processes to the operator for testing
             const responsibleUserId = (data.code.startsWith('10') || data.code.startsWith('40'))
@@ -203,7 +222,9 @@ async function seed(): Promise<void> {
                 owner: data.owner,
                 plannedDate,
                 limitDate,
-                status: ProcessStatus.PENDING,
+                deliveryDate,
+                status: data.status,
+                score: data.score ?? null,
                 responsibleUserId,
             });
         }
@@ -214,12 +235,12 @@ async function seed(): Promise<void> {
         console.log('\n📊 Summary:');
         console.log(`   Companies: 2`);
         console.log(`   Users: 3`);
-        console.log(`   Cycles: 1`);
+        console.log(`   Cycles: ${cycles.length}`);
         console.log(`   Processes: ${processData.length}`);
         console.log('\n🔑 Login credentials:');
-        console.log('   Admin: admin@gestaopro.com / admin123');
-        console.log('   Manager: gerente@gestaopro.com / manager123');
-        console.log('   Operator: operador@gestaopro.com / operador123');
+        console.log('   Admin: admin@metodochronos.com / admin123');
+        console.log('   Manager: gerente@metodochronos.com / manager123');
+        console.log('   Operator: operador@metodochronos.com / operador123');
 
         await mongoose.disconnect();
         process.exit(0);

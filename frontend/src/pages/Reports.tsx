@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, companiesApi, cyclesApi } from '../api';
 import { useAuth } from '../contexts';
-import { Printer, FileDown } from 'lucide-react';
+import { Printer, FileDown, List, CalendarDays } from 'lucide-react';
 import { ProcessStatus } from '../types';
 import { exportDetailedReportPDF } from '../utils/reportsPdfExport';
+import ProcessScheduleCalendar from '../components/ProcessScheduleCalendar';
 
 const STATUS_LABELS = {
     PENDING: 'Pendente',
@@ -19,6 +20,7 @@ export default function Reports() {
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedStatus, setSelectedStatus] = useState<string>('');
     const [isExporting, setIsExporting] = useState(false);
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
     const { data: company } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
@@ -85,6 +87,8 @@ export default function Reports() {
     };
 
     const uniqueCycles = Array.from(new Set(cycles?.map(c => c.month) || [])).sort().reverse();
+    const calendarPeriod = selectedCycle || summary?.cycle?.month || new Date().toISOString().slice(0, 7);
+    const filteredProcesses = extract?.bySector ? Object.values(extract.bySector).flat() : [];
 
     return (
         <div className="space-y-6">
@@ -98,6 +102,26 @@ export default function Reports() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-1 print:hidden" role="group" aria-label="Modo de exibição">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('list')}
+                            aria-pressed={viewMode === 'list'}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 text-primary-700 dark:text-primary-300 shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'}`}
+                        >
+                            <List className="w-4 h-4" />
+                            Lista
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('calendar')}
+                            aria-pressed={viewMode === 'calendar'}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-gray-700 text-primary-700 dark:text-primary-300 shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'}`}
+                        >
+                            <CalendarDays className="w-4 h-4" />
+                            Calendário
+                        </button>
+                    </div>
                     <button 
                         onClick={handleExportPDF} 
                         disabled={isExporting || !summary || !extract}
@@ -208,7 +232,10 @@ export default function Reports() {
             </div>
 
 
-            {/* Extract Table */}
+            {/* Report visualization */}
+            {viewMode === 'calendar' ? (
+                <ProcessScheduleCalendar processes={filteredProcesses} period={calendarPeriod} />
+            ) : (
             <div className="card print:shadow-none print:border">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                     Extrato Detalhado
@@ -279,6 +306,7 @@ export default function Reports() {
                     </div>
                 )}
             </div>
+            )}
         </div>
     );
 }
