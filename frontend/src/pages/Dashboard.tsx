@@ -94,9 +94,10 @@ export default function Dashboard() {
     const { data: summary, isLoading: summaryLoading } = useQuery({
         queryKey: ['summary', selectedCycleId, selectedSector, selectedCycleObj?.month],
         queryFn: () => {
-            // If All Sectors mode matches a month, prefer fetching by month to get aggregation
-            if (!selectedSector && selectedCycleObj?.month) {
-                return reportsApi.getSummary(undefined, undefined, selectedCycleObj.month);
+            // The consolidated dashboard must use the same scope as the process list:
+            // every currently open sector cycle, even when sectors are on different months.
+            if (!selectedSector) {
+                return reportsApi.getSummary();
             }
             return reportsApi.getSummary(selectedCycleId, selectedSector);
         },
