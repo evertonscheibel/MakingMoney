@@ -5,6 +5,7 @@ import { cyclesApi } from '../api';
 import { useAuth } from '../contexts';
 import { Calendar, Clock } from 'lucide-react'; // Example icons
 import Header from './Header';
+import ManagerReleaseNotice from './ManagerReleaseNotice';
 
 interface LayoutProps {
     children: ReactNode;
@@ -30,6 +31,7 @@ export default function Layout({ children }: LayoutProps) {
 
     return (
         <div className="h-screen flex overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+            <ManagerReleaseNotice />
             {/* Mobile sidebar backdrop */}
             {sidebarOpen && (
                 <div
