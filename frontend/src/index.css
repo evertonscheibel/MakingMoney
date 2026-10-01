@@ -17,12 +17,20 @@
   }
 }
 
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  aside, header, nav, button, .print\:hidden { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+  .max-h-\[620px\] { max-height: none !important; overflow: visible !important; }
+}
+
 /* Component styles */
 @layer components {
 
   /* Card */
   .card {
-    @apply bg-white rounded-lg shadow-soft p-4 sm:p-6 border border-gray-100;
+    @apply bg-white rounded-xl shadow-soft p-4 sm:p-6 border border-gray-100;
   }
 
   .dark .card {
@@ -216,5 +224,30 @@
     .overflow-x-auto > table {
       min-width: 680px;
     }
+
+    .process-table {
+      min-width: 0 !important;
+    }
+
+    .responsive-data-table {
+      min-width: 0 !important;
+    }
+
+    .process-table th,
+    .process-table td {
+      @apply px-2;
+    }
+
+    .process-table th:nth-child(2),
+    .process-table td:nth-child(2) { width: 34%; }
+
+    .process-table th:nth-child(5),
+    .process-table td:nth-child(5) { width: 23%; }
+
+    .process-table th:nth-child(6),
+    .process-table td:nth-child(6) { width: 23%; }
+
+    .process-table th:nth-child(10),
+    .process-table td:nth-child(10) { width: 20%; }
   }
 }

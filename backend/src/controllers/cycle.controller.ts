@@ -6,7 +6,7 @@ import { auditAction } from '../middleware/audit';
 import { logger } from '../config';
 import { AuditAction, EntityType, CycleStatus, ProcessStatus, UserRole, DeliveryStatus } from '../types';
 import { Types } from 'mongoose';
-import { calculatePercentage, calculateAverage, getEffectiveSectors } from '../utils';
+import { calculatePercentage, calculateAverage, getEffectiveSectors, isSectorManager } from '../utils';
 
 // Validation rules
 export const openCycleValidation = [
@@ -35,7 +35,7 @@ export const listCycles = asyncHandler(async (req: Request, res: Response): Prom
     // Get all allowed sectors for this user
     const company = await (await import('../models')).Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
@@ -97,7 +97,7 @@ export const getCurrentCycle = asyncHandler(async (req: Request, res: Response):
     // Get all allowed sectors for this user
     const company = await (await import('../models')).Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];

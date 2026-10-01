@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { processesApi } from '../api';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Info } from 'lucide-react';
 import { Process, ProcessStatus } from '../types';
 
@@ -33,6 +35,13 @@ function dateKey(value: string | null): string | null {
 }
 
 export default function ProcessScheduleCalendar({ processes, period }: ProcessScheduleCalendarProps) {
+    const queryClient = useQueryClient();
+    const [dragged, setDragged] = useState<{ processId: string; field: 'plannedDate' | 'limitDate' } | null>(null);
+    const reschedule = useMutation({
+        mutationFn: ({ processId, field, date }: { processId: string; field: 'plannedDate' | 'limitDate'; date: string }) => processesApi.update(processId, { [field]: date }),
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['extract'] }); queryClient.invalidateQueries({ queryKey: ['summary'] }); },
+        onError: (error: any) => alert(error?.message || 'Não foi possível reagendar o processo.'),
+    });
     const [year, month] = period.split('-').map(Number);
     const validPeriod = Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12;
     const daysInMonth = validPeriod ? new Date(year, month, 0).getDate() : 0;
@@ -44,6 +53,11 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
     const monthLabel = validPeriod
         ? new Date(year, month - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
         : period;
+    const concentration = useMemo(() => days.map(day => {
+        const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        return processes.filter(p => dateKey(p.plannedDate) === key || dateKey(p.limitDate) === key).length;
+    }), [daysInMonth, month, processes, year]);
+    const maxConcentration = Math.max(1, ...concentration);
 
     if (!validPeriod) {
         return <div className="card text-center text-gray-500 py-12">Selecione um ciclo para visualizar o cronograma.</div>;
@@ -89,10 +103,12 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
                             {days.map(day => {
                                 const date = new Date(year, month - 1, day);
                                 const weekend = date.getDay() === 0 || date.getDay() === 6;
+                                const count = concentration[day - 1];
                                 return (
                                     <div key={day} className={`w-12 flex-shrink-0 py-2 text-center border-r border-b ${weekend ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'}`}>
                                         <span className="block text-[10px] uppercase text-gray-400">{date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}</span>
                                         <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{day}</span>
+                                        {count > 0 && <span title={`${count} entregas ou limites`} className={`mx-auto mt-1 block w-6 rounded-full text-[9px] font-bold ${count >= maxConcentration * .7 ? 'bg-red-100 text-red-700' : count >= maxConcentration * .4 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{count}</span>}
                                     </div>
                                 );
                             })}
@@ -118,9 +134,9 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
                                         dateKey(process.deliveryDate) === key && { code: 'E', ...DATE_MARKERS.delivered },
                                     ].filter(Boolean) as Array<{ code: string; label: string; className: string }>;
                                     return (
-                                        <div key={day} className={`w-12 min-h-16 flex-shrink-0 border-r border-b flex flex-wrap content-center justify-center gap-0.5 p-0.5 group-hover:bg-primary-50/40 dark:group-hover:bg-primary-900/10 ${weekend ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900'}`}>
+                                        <div key={day} onDragOver={(e)=>e.preventDefault()} onDrop={() => { if (dragged) reschedule.mutate({ processId: dragged.processId, field: dragged.field, date: key }); setDragged(null); }} className={`w-12 min-h-16 flex-shrink-0 border-r border-b flex flex-wrap content-center justify-center gap-0.5 p-0.5 group-hover:bg-primary-50/40 dark:group-hover:bg-primary-900/10 ${weekend ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900'} ${dragged ? 'hover:ring-2 hover:ring-primary-500' : ''}`}>
                                             {markers.map(marker => (
-                                                <span key={marker.code} title={`${marker.label}: ${process.title}`} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold cursor-help ${marker.className}`}>
+                                                <span draggable={marker.code !== 'E'} onDragStart={() => marker.code !== 'E' && setDragged({processId: process._id, field: marker.code === 'P' ? 'plannedDate' : 'limitDate'})} onDragEnd={()=>setDragged(null)} key={marker.code} title={`${marker.label}: ${process.title}${marker.code !== 'E' ? ' — arraste para reagendar' : ''}`} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${marker.code !== 'E' ? 'cursor-grab' : 'cursor-help'} ${marker.className}`}>
                                                     {marker.code}
                                                 </span>
                                             ))}
@@ -134,7 +150,7 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
             )}
 
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Role horizontalmente para navegar pelos dias.</span>
+                <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Arraste P ou L para outra data. A alteração vale em todo o sistema e notifica os gestores.</span>
                 <span className="flex flex-wrap gap-3">
                     <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-success-500" /> No prazo</span>
                     <span className="flex items-center gap-1"><Clock3 className="w-3.5 h-3.5 text-warning-500" /> Atrasado</span>

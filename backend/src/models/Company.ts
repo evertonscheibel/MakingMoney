@@ -44,6 +44,18 @@ const companySchema = new Schema<ICompanyDocument>(
                     ref: 'User',
                     default: null,
                 },
+                managerIds: [{
+                    type: Schema.Types.ObjectId,
+                    ref: 'User',
+                }],
+                cycleAutomation: {
+                    enabled: { type: Boolean, default: false },
+                    closingDay: { type: Number, min: 1, max: 31, default: 1 },
+                    closingTime: { type: String, default: '00:00', match: /^([01]\d|2[0-3]):[0-5]\d$/ },
+                    timezone: { type: String, default: 'America/Cuiaba' },
+                    sundayPlannedRule: { type: String, enum: ['KEEP', 'PREVIOUS_DAY', 'PREVIOUS_BUSINESS_DAY', 'NEXT_DAY', 'NEXT_BUSINESS_DAY'], default: 'PREVIOUS_BUSINESS_DAY' },
+                    sundayLimitRule: { type: String, enum: ['KEEP', 'PREVIOUS_DAY', 'PREVIOUS_BUSINESS_DAY', 'NEXT_DAY', 'NEXT_BUSINESS_DAY'], default: 'NEXT_BUSINESS_DAY' },
+                },
                 _id: { type: Schema.Types.ObjectId, auto: true }
             }] as any),
             default: [],

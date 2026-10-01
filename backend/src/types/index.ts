@@ -70,7 +70,16 @@ export enum EmailEventStatus {
 
 export interface ISector {
     name: string;
-    managerId?: Types.ObjectId | string;
+    managerId?: Types.ObjectId | string | null;
+    managerIds?: (Types.ObjectId | string)[];
+    cycleAutomation?: {
+        enabled: boolean;
+        closingDay: number;
+        closingTime: string;
+        timezone: string;
+        sundayPlannedRule: 'KEEP' | 'PREVIOUS_DAY' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_DAY' | 'NEXT_BUSINESS_DAY';
+        sundayLimitRule: 'KEEP' | 'PREVIOUS_DAY' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_DAY' | 'NEXT_BUSINESS_DAY';
+    };
 }
 
 // ==================== INTERFACES ====================

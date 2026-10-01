@@ -10,4 +10,5 @@ export { EmailEvent, IEmailEventDocument } from './EmailEvent';
 export { EmailConfig, IEmailConfigDocument, SMTPSecurityMode } from './EmailConfig';
 export { EmailQueue, IEmailQueueDocument, EmailStatus } from './EmailQueue';
 export { EmailLog, IEmailLogDocument, EmailLogStatus } from './EmailLog';
+export { EmailTemplate, IEmailTemplateDocument } from './EmailTemplate';
 

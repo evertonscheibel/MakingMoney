@@ -14,6 +14,7 @@ import logRoutes from './log.routes';
 import metricsRoutes from './metrics.routes';
 import bonusRoutes from './bonus.routes';
 import importRoutes from './import.routes';
+import emailTemplateRoutes from './emailTemplate.routes';
 
 const router = Router();
 
@@ -45,6 +46,7 @@ router.use('/logs', logRoutes);
 router.use('/metrics', metricsRoutes);
 router.use('/bonus', bonusRoutes);
 router.use('/import', importRoutes);
+router.use('/settings/email-templates', emailTemplateRoutes);
 
 export default router;
 

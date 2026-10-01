@@ -16,7 +16,7 @@ import { AuthenticatedUser } from '../types';
  *     legacy singular `sector` field, for accounts not yet migrated to
  *     per-company sector permissions.
  *
- * Sectors a user manages (company.sectors[].managerId === userId) are merged
+ * Sectors a user manages are merged
  * in on top by the caller, since that depends on the Company document.
  */
 export function getEffectiveSectors(
@@ -34,4 +34,9 @@ export function getEffectiveSectors(
         ...(user.sector ? [user.sector] : []),
     ];
     return [...new Set(legacy)];
+}
+
+export function isSectorManager(sector: { managerId?: unknown; managerIds?: unknown[] }, userId: string): boolean {
+    return [ ...(sector.managerIds || []), ...(sector.managerId ? [sector.managerId] : []) ]
+        .some(id => String(id) === String(userId));
 }

@@ -303,13 +303,13 @@ export default function UserList() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full responsive-data-table">
                         <thead>
                             <tr className="border-b border-gray-200">
                                 <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Usuário</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Email</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Funções</th>
-                                <th className="text-center py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
+                                <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-semibold text-gray-600">Email</th>
+                                <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-semibold text-gray-600">Funções</th>
+                                <th className="hidden sm:table-cell text-center py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
                                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600">Ações</th>
                             </tr>
                         </thead>
@@ -337,8 +337,8 @@ export default function UserList() {
                                                 <p className="font-medium text-gray-900">{u.name}</p>
                                             </div>
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600">{u.email}</td>
-                                        <td className="py-3 px-4">
+                                        <td className="hidden md:table-cell py-3 px-4 text-sm text-gray-600">{u.email}</td>
+                                        <td className="hidden lg:table-cell py-3 px-4">
                                             <div className="flex gap-1 flex-wrap">
                                                 {u.roles.filter(role => Object.values(UserRole).includes(role)).map((role) => (
                                                     <span key={role} className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
@@ -347,7 +347,7 @@ export default function UserList() {
                                                 ))}
                                             </div>
                                         </td>
-                                        <td className="py-3 px-4 text-center">
+                                        <td className="hidden sm:table-cell py-3 px-4 text-center">
                                             {u.isEmailVerified ? (
                                                 <span className="inline-flex items-center text-success-600" title="Email Verificado">
                                                     <CheckCircle className="w-5 h-5" />

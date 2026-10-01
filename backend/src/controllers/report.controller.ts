@@ -4,7 +4,7 @@ import { query } from 'express-validator';
 // import { Cycle, Process, Company } from '../models';
 import { asyncHandler, NotFoundError, UnauthorizedError, ForbiddenError } from '../middleware/errors';
 import { CycleStatus, ProcessStatus, UserRole } from '../types';
-import { calculatePercentage, calculateAverage, getEffectiveSectors } from '../utils';
+import { calculatePercentage, calculateAverage, getEffectiveSectors, isSectorManager } from '../utils';
 
 export const reportValidation = [
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
@@ -133,7 +133,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
     // Get all allowed sectors for this user
     const company = await Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
@@ -253,7 +253,7 @@ export const getSectorRanking = asyncHandler(async (req: Request, res: Response)
 
     const company = await Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
@@ -336,7 +336,7 @@ export const getStatusDistribution = asyncHandler(async (req: Request, res: Resp
 
     const company = await Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
@@ -422,7 +422,7 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
 
     const company = await Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];
@@ -536,7 +536,7 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
 
     const company = await Company.findById(activeCompanyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const combinedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, activeCompanyId)])];

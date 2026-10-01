@@ -4,7 +4,7 @@ import { asyncHandler, NotFoundError, AppError } from '../middleware/errors';
 import { auditAction } from '../middleware/audit';
 import { AuditAction, EntityType, CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
 import { Types } from 'mongoose';
-import { calculateScore, getPendingStatus, getEffectiveSectors } from '../utils';
+import { calculateScore, getPendingStatus, getEffectiveSectors, isSectorManager } from '../utils';
 import { logger } from '../config';
 import { EmailService } from '../services/email.service';
 import { getProcessDeliveryEmailTemplate } from '../services/email/templates/processDelivery.template';
@@ -83,7 +83,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
         limit = '100'
     } = req.query;
 
-    const { Process, Cycle, Company } = await import('../models');
+    const { Process, Cycle, Company, User } = await import('../models');
 
     // Determine role for THIS specific company
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
@@ -104,7 +104,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     // Fetch company to check sector responsibilities
     const company = await Company.findById(companyId);
     const managedSectors = company?.sectors
-        .filter(s => s.managerId && s.managerId.toString() === userId)
+        .filter(s => isSectorManager(s, userId))
         .map(s => s.name) || [];
 
     const allUserSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
@@ -206,7 +206,7 @@ export const getProcess = asyncHandler(async (req: Request, res: Response): Prom
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
@@ -282,7 +282,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     const companyId = req.companyId!;
     const updates = req.body;
 
-    const { Process, Cycle, Company } = await import('../models');
+    const { Process, Cycle, Company, User } = await import('../models');
     const { getPendingStatus } = await import('../utils');
 
     const process = await Process.findOne({ _id: id, companyId });
@@ -302,7 +302,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
         if (!allowedSectors.includes(process.sector)) { throw new AppError('You do not have permission to modify processes in this sector', 403); }
@@ -316,6 +316,10 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     // previously caused every process a MASTER saved to be silently
     // deactivated, since this form has no "active" field at all.
     const before = process.toObject();
+    const scheduleChanged = Boolean(
+        (updates.plannedDate && new Date(updates.plannedDate).getTime() !== process.plannedDate.getTime()) ||
+        (updates.limitDate && new Date(updates.limitDate).getTime() !== process.limitDate.getTime())
+    );
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
     if (updates.sector) process.sector = updates.sector;
@@ -329,6 +333,22 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
 
     await process.save();
     await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
+
+    if (scheduleChanged) {
+        const company = await Company.findById(companyId);
+        const sectorConfig = company?.sectors.find(s => s.name === process.sector) as any;
+        const managerIds = [...new Set([...(sectorConfig?.managerIds || []), ...(sectorConfig?.managerId ? [sectorConfig.managerId] : [])].map(String))];
+        const managers = await User.find({ _id: { $in: managerIds } }).select('email name');
+        for (const manager of managers) {
+            await EmailService.enqueue(companyId as any, {
+                to: manager.email,
+                subject: `Cronograma alterado: ${process.code} - ${process.title}`,
+                html: `<p>Olá ${manager.name},</p><p>O processo <strong>${process.code} - ${process.title}</strong> foi reagendado.</p><p>Data planejada: <strong>${process.plannedDate.toLocaleDateString('pt-BR')}</strong><br>Data limite: <strong>${process.limitDate.toLocaleDateString('pt-BR')}</strong></p>`,
+                category: 'schedule_changed', entityId: process._id.toString(), entityType: 'Process', createdBy: userId,
+                templateData: { managerName: manager.name, processCode: process.code, processTitle: process.title, plannedDate: process.plannedDate.toLocaleDateString('pt-BR'), limitDate: process.limitDate.toLocaleDateString('pt-BR') }
+            });
+        }
+    }
 
     res.json({ success: true, data: process });
 });
@@ -403,7 +423,7 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
@@ -452,7 +472,7 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
     const isOperator = !isMaster && !isManager;
 
     const company = await Company.findById(companyId);
-    const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+    const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
     const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
     if (!isMaster) {
@@ -518,7 +538,7 @@ export const deleteProcess = asyncHandler(async (req: Request, res: Response): P
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('You do not have permission to delete processes in this sector', 403); }
         if (!isManager) { throw new AppError('Operators are not allowed to delete processes', 403); }
@@ -552,7 +572,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
     const company = await Company.findById(companyId);
-    const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+    const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
     const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
 
     if (!isMaster && !allowedSectors.includes(process.sector)) {
@@ -594,7 +614,7 @@ export const sendDeliveryEmail = asyncHandler(async (req: Request, res: Response
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Permission denied', 403); }
     }
@@ -604,10 +624,11 @@ export const sendDeliveryEmail = asyncHandler(async (req: Request, res: Response
     const admins = await User.find({ 'companyAccess.companyId': companyId, roles: UserRole.MASTER }).select('email name');
     const company = await Company.findById(companyId);
     const sectorConfig = company?.sectors.find(s => s.name === process.sector);
-    let manager = sectorConfig?.managerId ? await User.findById(sectorConfig.managerId).select('email name') : null;
+    const managerIds = [...new Set([...(sectorConfig as any)?.managerIds || [], ...(sectorConfig?.managerId ? [sectorConfig.managerId] : [])].map(String))];
+    const managers = await User.find({ _id: { $in: managerIds } }).select('email name');
 
     const recipients = admins.map(a => ({ email: a.email, name: a.name }));
-    if (manager) { recipients.push({ email: manager.email, name: manager.name }); }
+    recipients.push(...managers.map(manager => ({ email: manager.email, name: manager.name })));
 
     for (const recipient of recipients) {
         const emailHtml = getProcessDeliveryEmailTemplate({ recipientName: recipient.name, process, statusText: 'Entregue' });
@@ -639,7 +660,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
-        const managedSectors = company?.sectors.filter(s => s.managerId && s.managerId.toString() === userId).map(s => s.name) || [];
+        const managedSectors = company?.sectors.filter(s => isSectorManager(s, userId)).map(s => s.name) || [];
         const allowedSectors = [...new Set([...managedSectors, ...getEffectiveSectors(req.user!, companyId)])];
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Permission denied', 403); }
     }

@@ -186,13 +186,13 @@ export default function CompanyRegistration() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full responsive-data-table">
                         <thead>
                             <tr className="border-b border-gray-200 dark:border-gray-700">
                                 <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Empresa</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">CNPJ</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Cidade/UF</th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Contrato</th>
+                                <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">CNPJ</th>
+                                <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Cidade/UF</th>
+                                <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Contrato</th>
                                 <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Status</th>
                                 <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Ações</th>
                             </tr>
@@ -224,13 +224,13 @@ export default function CompanyRegistration() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                                        <td className="hidden lg:table-cell py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             {company.cnpj || '-'}
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                                        <td className="hidden lg:table-cell py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             {company.address?.city ? `${company.address.city}/${company.address.state}` : '-'}
                                         </td>
-                                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                                        <td className="hidden md:table-cell py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             <div>
                                                 <p>{company.modality || 'Padrão'}</p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-500">{company.contractDuration || 12} meses</p>

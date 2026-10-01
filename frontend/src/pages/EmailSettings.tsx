@@ -10,6 +10,8 @@ export default function EmailSettings() {
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
     const [form, setForm] = useState({
         host: '',
@@ -31,7 +33,8 @@ export default function EmailSettings() {
     const loadConfig = async () => {
         try {
             setLoading(true);
-            const config = await settingsApi.email.get();
+            const [config, loadedTemplates] = await Promise.all([settingsApi.email.get(), settingsApi.emailTemplates.list()]);
+            setTemplates(loadedTemplates);
             if (config) {
                 setForm({
                     host: config.host || '',
@@ -49,6 +52,13 @@ export default function EmailSettings() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const saveTemplate = async () => {
+        if (!selectedTemplate) return;
+        await settingsApi.emailTemplates.update(selectedTemplate.category, selectedTemplate);
+        setTemplates(items => items.map(item => item.category === selectedTemplate.category ? selectedTemplate : item));
+        alert('Modelo de e-mail salvo. Os próximos envios desta categoria usarão este conteúdo.');
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -346,6 +356,19 @@ export default function EmailSettings() {
                     </div>
                 </form >
             </div >
+
+            <div className="card space-y-4">
+                <div><h2 className="text-lg font-semibold text-gray-900">Modelos por categoria</h2><p className="text-sm text-gray-500">Personalize assunto e corpo. Variáveis usam o formato <code>{'{{nomeDaVariavel}}'}</code>.</p></div>
+                <div className="grid md:grid-cols-[240px_1fr] gap-4">
+                    <div className="space-y-2">{templates.map(template => <button type="button" key={template.category} onClick={() => setSelectedTemplate({...template})} className={`w-full text-left rounded-lg border px-3 py-2 text-sm ${selectedTemplate?.category === template.category ? 'border-primary-500 bg-primary-50' : 'border-gray-200'}`}>{template.label}</button>)}</div>
+                    {selectedTemplate ? <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedTemplate.isActive} onChange={e=>setSelectedTemplate({...selectedTemplate,isActive:e.target.checked})}/> Usar modelo personalizado</label>
+                        <div><label className="label">Assunto</label><input className="input" value={selectedTemplate.subject} onChange={e=>setSelectedTemplate({...selectedTemplate,subject:e.target.value})}/></div>
+                        <div><label className="label">Corpo do e-mail (HTML)</label><textarea className="input min-h-64 font-mono" value={selectedTemplate.htmlBody} onChange={e=>setSelectedTemplate({...selectedTemplate,htmlBody:e.target.value})}/></div>
+                        <div className="flex justify-end"><button type="button" className="btn btn-primary" onClick={saveTemplate}><Save className="w-4 h-4"/>Salvar modelo</button></div>
+                    </div> : <p className="text-sm text-gray-500">Selecione uma categoria para editar.</p>}
+                </div>
+            </div>
         </div >
     );
 }

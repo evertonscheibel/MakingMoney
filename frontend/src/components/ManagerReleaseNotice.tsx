@@ -23,7 +23,7 @@ export default function ManagerReleaseNotice() {
             access => access.companyId === user.activeCompanyId,
         )?.role;
         const managesRegisteredSector = user.activeCompany?.sectors?.some(
-            sector => sector.managerId === userId,
+            sector => [...(sector.managerIds || []), ...(sector.managerId ? [sector.managerId] : [])].some(id => String(id) === String(userId)),
         );
 
         return user.roles.includes(UserRole.MANAGER)

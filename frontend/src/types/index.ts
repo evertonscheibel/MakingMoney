@@ -36,8 +36,18 @@ export enum SMTPSecurityMode {
 
 // ==================== INTERFACES ====================
 export interface Sector {
+    _id?: string;
     name: string;
     managerId?: string | null;
+    managerIds?: string[];
+    cycleAutomation?: {
+        enabled: boolean;
+        closingDay: number;
+        closingTime: string;
+        timezone: string;
+        sundayPlannedRule: 'KEEP' | 'PREVIOUS_DAY' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_DAY' | 'NEXT_BUSINESS_DAY';
+        sundayLimitRule: 'KEEP' | 'PREVIOUS_DAY' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_DAY' | 'NEXT_BUSINESS_DAY';
+    };
 }
 
 export interface User {

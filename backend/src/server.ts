@@ -8,6 +8,7 @@ import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware';
 import { emailWorker } from './services/email/EmailWorker';
 import { alertWorker } from './services/email/AlertWorker';
+import { cycleAutomationWorker } from './services/CycleAutomationWorker';
 
 // Validate configuration
 validateConfig();
@@ -103,6 +104,7 @@ async function startServer(): Promise<void> {
         setTimeout(() => {
             emailWorker.start();
             alertWorker.start();
+            cycleAutomationWorker.start();
         }, 5000);
     } catch (error) {
         logger.error('Failed to start server:', error);

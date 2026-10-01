@@ -18,6 +18,8 @@ export const createCompanyValidation = [
     body('sectors').optional().isArray().withMessage('Sectors must be an array'),
     body('sectors.*.name').optional().isString().trim().withMessage('Each sector must have a name'),
     body('sectors.*.managerId').optional().isMongoId().withMessage('Manager ID must be a valid Mongo ID'),
+    body('sectors.*.managerIds').optional().isArray(),
+    body('sectors.*.managerIds.*').optional().isMongoId(),
     body('contractDuration').optional().isInt({ min: 1 }).withMessage('Duration must be positive integer'),
     body('modality').optional().isString().trim(),
 ];
@@ -272,7 +274,7 @@ export const deleteCompany = asyncHandler(async (req: Request, res: Response): P
  */
 export const addSector = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const { sector, managerId } = req.body;
+    const { sector, managerId, managerIds = [], cycleAutomation } = req.body;
 
     if (!sector || typeof sector !== 'string' || sector.trim().length === 0) {
         throw new Error('Sector name is required');
@@ -296,7 +298,8 @@ export const addSector = asyncHandler(async (req: Request, res: Response): Promi
 
     const before = company.toObject();
 
-    company.sectors.push({ name: normalizedSector, managerId: managerId || null });
+    const normalizedManagers = [...new Set([...(managerIds || []), ...(managerId ? [managerId] : [])])];
+    company.sectors.push({ name: normalizedSector, managerId: normalizedManagers[0] || null, managerIds: normalizedManagers, cycleAutomation } as any);
     await company.save();
 
     // Audit log
@@ -322,7 +325,7 @@ export const addSector = asyncHandler(async (req: Request, res: Response): Promi
  */
 export const updateSector = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id, sectorId } = req.params;
-    const { name, managerId } = req.body;
+    const { name, managerId, managerIds, cycleAutomation } = req.body;
 
     const company = await Company.findById(id);
     if (!company) {
@@ -356,6 +359,14 @@ export const updateSector = asyncHandler(async (req: Request, res: Response): Pr
 
     if (managerId !== undefined) {
         company.sectors[sectorIndex].managerId = managerId || null;
+    }
+    if (managerIds !== undefined) {
+        const normalizedManagers = [...new Set((managerIds || []).filter(Boolean))];
+        (company.sectors[sectorIndex] as any).managerIds = normalizedManagers;
+        company.sectors[sectorIndex].managerId = (normalizedManagers[0] as string | undefined) || null;
+    }
+    if (cycleAutomation !== undefined) {
+        (company.sectors[sectorIndex] as any).cycleAutomation = cycleAutomation;
     }
 
     await company.save();

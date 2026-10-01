@@ -93,11 +93,11 @@ export const companiesApi = {
         return apiCall<void>('delete', `/companies/${id}`);
     },
 
-    addSector: async (id: string, data: { sector: string; managerId: string | null }): Promise<Company> => {
+    addSector: async (id: string, data: { sector: string; managerId?: string | null; managerIds?: string[]; cycleAutomation?: any }): Promise<Company> => {
         return apiCall<Company>('post', `/companies/${id}/sectors`, data);
     },
 
-    updateSector: async (companyId: string, sectorId: string, data: { name: string; managerId: string | null }): Promise<Company> => {
+    updateSector: async (companyId: string, sectorId: string, data: { name: string; managerId?: string | null; managerIds?: string[]; cycleAutomation?: any }): Promise<Company> => {
         return apiCall<Company>('put', `/companies/${companyId}/sectors/${sectorId}`, data);
     },
 
@@ -376,6 +376,10 @@ export const settingsApi = {
         test: async (data: any): Promise<{ success: boolean; message: string }> => {
             return apiCall('post', '/settings/email/test', data);
         },
+    },
+    emailTemplates: {
+        list: async (): Promise<any[]> => apiCall<any[]>('get', '/settings/email-templates'),
+        update: async (category: string, data: any): Promise<any> => apiCall<any>('put', `/settings/email-templates/${category}`, data),
     },
 };
 

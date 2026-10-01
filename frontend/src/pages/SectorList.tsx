@@ -13,19 +13,24 @@ import {
 
 interface SectorFormData {
     name: string;
-    managerId: string | null;
+    managerIds: string[];
+    cycleAutomation: {
+        enabled: boolean; closingDay: number; closingTime: string; timezone: string;
+        sundayPlannedRule: string; sundayLimitRule: string;
+    };
 }
 
 const initialFormData: SectorFormData = {
     name: '',
-    managerId: null,
+    managerIds: [],
+    cycleAutomation: { enabled: false, closingDay: 1, closingTime: '00:00', timezone: 'America/Cuiaba', sundayPlannedRule: 'PREVIOUS_BUSINESS_DAY', sundayLimitRule: 'NEXT_BUSINESS_DAY' },
 };
 
 export default function SectorList() {
     const queryClient = useQueryClient();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedSector, setSelectedSector] = useState<{ id: string, name: string, managerId: string | null } | null>(null);
+    const [selectedSector, setSelectedSector] = useState<{ id: string, name: string } | null>(null);
     const [formData, setFormData] = useState<SectorFormData>(initialFormData);
 
     // Fetch current user's company details to get sectors
@@ -45,7 +50,7 @@ export default function SectorList() {
     });
 
     const addMutation = useMutation({
-        mutationFn: (data: { sector: string; managerId: string | null }) => companiesApi.addSector(companyId!, data),
+        mutationFn: (data: any) => companiesApi.addSector(companyId!, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['me'] }); // Profile update refreshes sectors
             setIsModalOpen(false);
@@ -112,10 +117,7 @@ export default function SectorList() {
             // If the user selects a manager during creation, it won't be saved unless I fix API.
             // I'll fix the API wrapper in the next step.
 
-            addMutation.mutate({ 
-                sector: formData.name, 
-                managerId: formData.managerId 
-            });
+            addMutation.mutate({ sector: formData.name, managerIds: formData.managerIds, cycleAutomation: formData.cycleAutomation });
             // Note: Manager ID won't be saved on create unless standard API changes.
         }
     };
@@ -123,12 +125,12 @@ export default function SectorList() {
     const handleEdit = (sector: any) => {
         setSelectedSector({
             id: sector._id,
-            name: sector.name,
-            managerId: sector.managerId ? (typeof sector.managerId === 'object' ? sector.managerId._id : sector.managerId) : null
+            name: sector.name
         });
         setFormData({
             name: sector.name,
-            managerId: sector.managerId ? (typeof sector.managerId === 'object' ? sector.managerId._id : sector.managerId) : null
+            managerIds: (sector.managerIds?.length ? sector.managerIds : (sector.managerId ? [sector.managerId] : [])).map((m: any) => typeof m === 'object' ? m._id : m),
+            cycleAutomation: { ...initialFormData.cycleAutomation, ...(sector.cycleAutomation || {}) }
         });
         setIsModalOpen(true);
     };
@@ -214,7 +216,7 @@ export default function SectorList() {
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
-                                            {sector.managerId ? (
+                                            {(sector.managerIds?.length || sector.managerId) ? (
                                                 <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                                                     <User className="w-4 h-4 text-gray-400" />
                                                     {/* Ideally we would populate managerName, but for now we might only have ID if not populated. 
@@ -231,7 +233,11 @@ export default function SectorList() {
                                                          OR: Just show "Definido" or rely on cached users list.
                                                       */}
                                                     <span className="text-sm">
-                                                        {typeof sector.managerId === 'object' ? sector.managerId.name : 'Gestor Definido'}
+                                                        {(() => {
+                                                            const ids = (sector.managerIds?.length ? sector.managerIds : [sector.managerId]).map((m: any) => typeof m === 'object' ? m._id : m);
+                                                            const names = ids.map((id: string) => users?.find(u => (u.id || u._id) === id)?.name).filter(Boolean);
+                                                            return names.length ? names.join(', ') : `${ids.length} gestor(es) definido(s)`;
+                                                        })()}
                                                     </span>
                                                 </div>
                                             ) : (
@@ -267,7 +273,7 @@ export default function SectorList() {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {selectedSector ? 'Editar Setor' : 'Novo Setor'}
@@ -294,28 +300,26 @@ export default function SectorList() {
                             </div>
 
                             <div>
-                                <label className="label">Gestor Responsável</label>
-                                <select
-                                    value={formData.managerId || ''}
-                                    onChange={(e) => setFormData({ ...formData, managerId: e.target.value || null })}
-                                    className="input w-full"
-                                >
-                                    <option value="">Selecione um gestor...</option>
-                                    {isLoadingUsers ? (
-                                        <option disabled>Carregando usuários...</option>
-                                    ) : isUsersError ? (
-                                        <option disabled>Erro ao carregar usuários</option>
-                                    ) : (
-                                        users?.map((u) => (
-                                            <option key={u.id || u._id} value={u.id || u._id}>
-                                                {u.name}
-                                            </option>
-                                        ))
-                                    )}
-                                </select>
+                                <label className="label">Gestores responsáveis</label>
+                                <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+                                    {isLoadingUsers ? <p className="text-sm text-gray-500">Carregando usuários...</p> : isUsersError ? <p className="text-sm text-red-500">Erro ao carregar usuários</p> : users?.map((u) => {
+                                        const id = (u.id || u._id)!;
+                                        return <label key={id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={formData.managerIds.includes(id)} onChange={(e) => setFormData({ ...formData, managerIds: e.target.checked ? [...formData.managerIds, id] : formData.managerIds.filter(x => x !== id) })} />{u.name}</label>;
+                                    })}
+                                </div>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    O gestor receberá notificações de entregas deste setor.
+                                    Todos os gestores selecionados receberão notificações deste setor.
                                 </p>
+                            </div>
+
+                            <div className="border-t pt-4 space-y-3">
+                                <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={formData.cycleAutomation.enabled} onChange={(e) => setFormData({...formData, cycleAutomation:{...formData.cycleAutomation, enabled:e.target.checked}})} /> Fechamento automático</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div><label className="label">Dia do mês</label><input className="input" type="number" min="1" max="31" value={formData.cycleAutomation.closingDay} onChange={(e)=>setFormData({...formData,cycleAutomation:{...formData.cycleAutomation,closingDay:Number(e.target.value)}})} /></div>
+                                    <div><label className="label">Horário</label><input className="input" type="time" value={formData.cycleAutomation.closingTime} onChange={(e)=>setFormData({...formData,cycleAutomation:{...formData.cycleAutomation,closingTime:e.target.value}})} /></div>
+                                    <div><label className="label">Planejada no domingo</label><select className="input" value={formData.cycleAutomation.sundayPlannedRule} onChange={(e)=>setFormData({...formData,cycleAutomation:{...formData.cycleAutomation,sundayPlannedRule:e.target.value}})}><option value="KEEP">Manter</option><option value="PREVIOUS_DAY">Dia anterior</option><option value="PREVIOUS_BUSINESS_DAY">Dia útil anterior</option><option value="NEXT_DAY">Dia seguinte</option><option value="NEXT_BUSINESS_DAY">Próximo dia útil</option></select></div>
+                                    <div><label className="label">Limite no domingo</label><select className="input" value={formData.cycleAutomation.sundayLimitRule} onChange={(e)=>setFormData({...formData,cycleAutomation:{...formData.cycleAutomation,sundayLimitRule:e.target.value}})}><option value="KEEP">Manter</option><option value="PREVIOUS_DAY">Dia anterior</option><option value="PREVIOUS_BUSINESS_DAY">Dia útil anterior</option><option value="NEXT_DAY">Dia seguinte</option><option value="NEXT_BUSINESS_DAY">Próximo dia útil</option></select></div>
+                                </div>
                             </div>
 
 

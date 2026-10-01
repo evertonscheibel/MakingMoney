@@ -386,7 +386,7 @@ export default function ProcessList() {
                             Ciclo {currentCycle?.month || 'N/A'} • {processesData?.data?.length || 0} processos
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                         {!isOperator && (
                             <button
                                 onClick={() => setShowImportModal(true)}
@@ -424,8 +424,8 @@ export default function ProcessList() {
 
                 {/* Filters */}
                 <div className="card dark:bg-gray-800 dark:border-gray-700">
-                    <div className="flex flex-col xl:flex-row gap-3 p-3">
-                        <div className="relative flex-1 xl:flex-[2]">
+                    <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-[minmax(220px,2fr)_minmax(0,5fr)]">
+                        <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                                 type="text"
@@ -435,11 +435,11 @@ export default function ProcessList() {
                                 className="input pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white w-full"
                             />
                         </div>
-                        <div className="flex-1 xl:flex-[3] flex flex-wrap gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                             <select
                                 value={sectorFilter}
                                 onChange={(e) => setSectorFilter(e.target.value)}
-                                className="input flex-1 min-w-[120px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 disabled={!!(isOperator || (isStrictManager && (user?.sectors?.length === 1 || (!user?.sectors?.length && user?.sector))))}
                             >
                                 {!isStrictManager && !isOperator && <option value="">Todos os setores</option>}
@@ -458,7 +458,7 @@ export default function ProcessList() {
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                className="input flex-1 min-w-[120px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             >
                                 <option value="">Todos status</option>
                                 <option value="PENDING">Pendente</option>
@@ -469,7 +469,7 @@ export default function ProcessList() {
                             <select
                                 value={responsibleFilter}
                                 onChange={(e) => setResponsibleFilter(e.target.value)}
-                                className="input flex-1 min-w-[120px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             >
                                 <option value="">Todos responsáveis</option>
                                 {users?.map((u) => (
@@ -479,7 +479,7 @@ export default function ProcessList() {
                             <select
                                 value={deliveryMode}
                                 onChange={(e) => setDeliveryMode(e.target.value as typeof deliveryMode)}
-                                className="input flex-1 min-w-[150px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             >
                                 <option value="ALL">Todas entregas</option>
                                 <option value="DELIVERED_FIRST">Entregues primeiro</option>
@@ -490,7 +490,7 @@ export default function ProcessList() {
                             <select
                                 value={sortOrder}
                                 onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                                className="input flex-1 min-w-[170px] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             >
                                 <option value="asc">Data planejada crescente</option>
                                 <option value="desc">Data planejada decrescente</option>
@@ -524,13 +524,13 @@ export default function ProcessList() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                     </div>
                 ) : (
-                    <table className="table table-fixed w-full px-2">
+                    <table className="table process-table table-fixed w-full px-2">
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
-                                <th className="w-[6%] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
+                                <th className="w-[6%] bg-white dark:bg-gray-800 hidden md:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
                                 <th className="w-[18%] bg-white dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400 truncate">Título</th>
                                 <th className="w-[12%] bg-white dark:bg-gray-800 hidden lg:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Setor</th>
-                                <th className="w-[9%] bg-white dark:bg-gray-800 hidden sm:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Planejado {sortOrder === 'asc' ? '↑' : '↓'}</th>
+                                <th className="w-[9%] bg-white dark:bg-gray-800 hidden md:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Planejado {sortOrder === 'asc' ? '↑' : '↓'}</th>
                                 <th className="w-[9%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Limite</th>
                                 <th className="w-[10%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Status</th>
                                 <th className="w-[10%] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Entrega</th>
@@ -542,10 +542,10 @@ export default function ProcessList() {
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
-                                    <td className="font-mono text-sm text-center hidden sm:table-cell truncate">{process.code}</td>
+                                    <td className="font-mono text-sm text-center hidden md:table-cell truncate">{process.code}</td>
                                     <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
                                     <td className="truncate hidden lg:table-cell" title={process.sector}>{process.sector}</td>
-                                    <td className="text-sm text-center hidden sm:table-cell truncate">
+                                    <td className="text-sm text-center hidden md:table-cell truncate">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </td>
                                     <td className="text-sm text-center truncate">

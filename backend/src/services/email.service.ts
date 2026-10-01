@@ -13,6 +13,7 @@ interface EmailOptions {
     entityId?: string;
     entityType?: string;
     createdBy?: string;
+    templateData?: Record<string, string | number>;
 }
 
 export class EmailService {
@@ -28,8 +29,11 @@ export class EmailService {
                 return false;
             }
 
-            // LGPD: Add footer info if configured
-            let finalHtml = options.html;
+            const { EmailTemplate } = await import('../models/EmailTemplate');
+            const customTemplate = options.category ? await EmailTemplate.findOne({ companyId, category: options.category, isActive: true }) : null;
+            const render = (value: string) => value.replace(/\{\{\s*([\w]+)\s*\}\}/g, (_match, key) => String(options.templateData?.[key] ?? `{{${key}}}`));
+            const subject = customTemplate ? render(customTemplate.subject) : options.subject;
+            let finalHtml = customTemplate ? render(customTemplate.htmlBody) : options.html;
             if (config.footerText) {
                 finalHtml += `<br><hr><small style="color: #666;">${config.footerText}</small>`;
                 // Add opt-out link logic here if needed for marketing categorization
@@ -38,7 +42,7 @@ export class EmailService {
             await EmailQueue.create({
                 companyId,
                 to: options.to,
-                subject: options.subject,
+                subject,
                 body: {
                     html: finalHtml,
                     text: options.text || options.html.replace(/<[^>]*>/g, ''),
