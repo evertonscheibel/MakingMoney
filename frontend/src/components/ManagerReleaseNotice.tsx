@@ -4,11 +4,11 @@ import { CalendarDays, Check, Mail, RefreshCw, Sparkles, Users, X } from 'lucide
 import { useAuth } from '../contexts';
 import { UserRole } from '../types';
 
-const NOTICE_VERSION = '2026-10-manager-updates';
+const NOTICE_VERSION = '2026-10-manager-updates-v2';
 
 const updates = [
     { icon: CalendarDays, title: 'Calendário com reagendamento', description: 'Em Relatórios, arraste os marcadores P (planejado) e L (limite) para ajustar as datas dos processos permitidos. O calendário também destaca os dias com maior concentração de atividades.' },
-    { icon: RefreshCw, title: 'Ciclos e regras para domingos', description: 'O fechamento automático e a abertura do próximo ciclo podem ser configurados por setor, com dia, horário e regras para datas que caem no domingo. Após a abertura automática, os gestores recebem um e-mail para revisar o novo ciclo.' },
+    { icon: RefreshCw, title: 'Fechamento e abertura automática de ciclos', description: 'Cada setor pode ficar no modo manual (padrão) ou automático, em Empresas → Setores → editar → "Fechamento automático". No automático, no dia e horário configurados o sistema fecha o ciclo do mês anterior, grava os indicadores, abre o ciclo do mês seguinte e copia os processos com as datas avançadas um mês, zerando entregas e notas. Datas que caírem no domingo seguem a regra escolhida (manter, dia anterior, dia útil anterior, dia seguinte ou próximo dia útil). Feriados não são considerados. Em seguida, os gestores do setor recebem um e-mail para revisar as datas no calendário. Para voltar ao manual, basta desmarcar a opção; o fechamento manual continua disponível.' },
     { icon: Users, title: 'Mais de um responsável por setor', description: 'Agora é possível cadastrar vários gestores no mesmo setor para compartilhar o acompanhamento e receber as notificações.' },
     { icon: Mail, title: 'E-mails personalizados por categoria', description: 'Nas configurações de e-mail, os usuários com permissão podem personalizar o assunto e o corpo das mensagens de cada categoria.' },
 ];
