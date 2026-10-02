@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { authenticate, requireCompany } from '../middleware';
+import { authenticate, requireCompany, authorize } from '../middleware';
+import { UserRole } from '../types';
 import { listEmailLogs, resendEmail } from '../controllers/emailLog.controller';
 
 const router = Router();
 
-router.use(authenticate, requireCompany);
+router.use(authenticate, requireCompany, authorize(UserRole.MASTER));
 
 // List email logs (all users can access)
 router.get('/', listEmailLogs);

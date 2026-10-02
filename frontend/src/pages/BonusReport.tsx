@@ -1,3 +1,4 @@
+import { getAccessibleSectors } from '../utils/companyAccess';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { bonusApi, companiesApi } from '../api';
@@ -181,7 +182,7 @@ export default function BonusReport() {
                         <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Setor</label>
                         <select className="input text-sm w-full" value={selectedSector} onChange={e => setSelectedSector(e.target.value)}>
                             <option value="">Todos os Setores</option>
-                            {company?.sectors.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                            {getAccessibleSectors(user, company).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                         </select>
                     </div>
                     <div className="min-w-[160px] flex-1">
@@ -271,7 +272,7 @@ export default function BonusReport() {
                                     </thead>
                                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                                         {filteredUsers.map((u: BonusReportUser, idx: number) => (
-                                            <tr key={u.userId} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors ${!u.sectorQualified ? 'opacity-50' : ''}`}>
+                                            <tr key={`${u.userId}-${u.sector}`} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors ${!u.sectorQualified ? 'opacity-50' : ''}`}>
                                                 <td className="py-2.5 text-xs text-gray-400">{idx + 1}</td>
                                                 <td className="py-2.5 font-medium text-sm text-gray-900 dark:text-white">{u.userName}</td>
                                                 <td className="py-2.5 text-sm text-gray-500">{u.sector}</td>

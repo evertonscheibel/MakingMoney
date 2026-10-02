@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { EmailLog, EmailQueue, EmailStatus } from '../models';
-import { asyncHandler, NotFoundError } from '../middleware/errors';
+import { asyncHandler, NotFoundError, AppError } from '../middleware/errors';
 
 /**
  * List Email Logs
@@ -56,12 +56,14 @@ export const listEmailLogs = asyncHandler(async (req: Request, res: Response): P
  */
 export const resendEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const { activeCompanyId } = req.user!;
+    const activeCompanyId = req.companyId!;
 
     const log = await EmailLog.findOne({ _id: id, companyId: activeCompanyId });
     if (!log) {
         throw new NotFoundError('Log entry');
     }
+
+    if (log.category === 'process_delivery') throw new AppError('Reenvie a notificação pela entrega do processo para validar o ciclo e o estado atual.', 400);
 
     // Clone to queue
     // Note: We need the original body. 
@@ -73,7 +75,7 @@ export const resendEmail = asyncHandler(async (req: Request, res: Response): Pro
     let originalBody: { html: string; text?: string } = { html: '', text: '' };
 
     if (log.queueId) {
-        const queueItem = await EmailQueue.findById(log.queueId);
+        const queueItem = await EmailQueue.findOne({_id: log.queueId, companyId: activeCompanyId});
         if (queueItem) {
             originalBody = queueItem.body;
         }

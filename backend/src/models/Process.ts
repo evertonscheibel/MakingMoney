@@ -102,6 +102,7 @@ const processSchema = new Schema<IProcessDocument>(
             enum: Object.values(DeliveryStatus),
             default: DeliveryStatus.NOT_DELIVERED,
         },
+        deliveryEmailBatchId: { type: String, default: null },
         emailSentAt: {
             type: Date,
             default: null,

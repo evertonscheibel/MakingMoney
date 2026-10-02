@@ -37,6 +37,8 @@ export enum DeliverySource {
 export enum DeliveryStatus {
     NOT_DELIVERED = 'NOT_DELIVERED',
     CONFIRMED_PENDING_EMAIL = 'CONFIRMED_PENDING_EMAIL',
+    EMAIL_QUEUED = 'EMAIL_QUEUED',
+    EMAIL_FAILED = 'EMAIL_FAILED',
     EMAIL_SENT = 'EMAIL_SENT'
 }
 
@@ -160,6 +162,7 @@ export interface IProcess {
     deliveryEvidence: string | null;
     deliveryStatus: DeliveryStatus;
     emailSentAt: Date | null;
+    deliveryEmailBatchId?: string | null;
     revertReason: string | null;
     revertedBy: Types.ObjectId | null;
     revertedAt: Date | null;

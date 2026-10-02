@@ -1,3 +1,4 @@
+import { getAccessibleSectors } from '../utils/companyAccess';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi, cyclesApi, metricsApi, companiesApi } from '../api';
 import { useAuth } from '../contexts';
@@ -41,7 +42,7 @@ export default function Dashboard() {
     // Initial state: Operators and Strict Managers MUST start with their sector.
     // Admins/Masters start with undefined (Consolidated view)
     const [selectedSector, setSelectedSector] = useState<string | undefined>(
-        (isOperator || isStrictManager) ? user?.sector : undefined
+        (isOperator || isStrictManager) ? getAccessibleSectors(user, user?.activeCompany)[0]?.name : undefined
     );
 
     const [selectedCycleId, setSelectedCycleId] = useState<string | undefined>();
@@ -52,8 +53,15 @@ export default function Dashboard() {
     const { data: activeCompany } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!),
-        enabled: !!user?.activeCompanyId && !isOperator && !isStrictManager,
+        enabled: !!user?.activeCompanyId,
     });
+    useEffect(() => {
+        const sectors = getAccessibleSectors(user, activeCompany);
+        if ((isOperator || isStrictManager) && sectors.length && !sectors.some(s => s.name === selectedSector)) {
+            setSelectedSector(sectors[0].name);
+        }
+    }, [activeCompany, user?.activeCompanyId, selectedSector]);
+
 
     // Fetch all cycles for navigation
     const { data: cycles } = useQuery({
@@ -331,7 +339,7 @@ export default function Dashboard() {
                             {isOperator ? 'Meus indicadores do ciclo' : 'Visão geral do ciclo'}
                         </p>
 
-                        {!isOperator && (!isStrictManager || !user?.sector || user?.roles.includes(UserRole.MASTER)) && (
+                        {!isOperator && (
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Setor:</span>
                                 <select
@@ -343,7 +351,7 @@ export default function Dashboard() {
                                     className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-primary-500/20"
                                 >
                                     <option value="">Todos os Setores (Consolidado)</option>
-                                    {activeCompany?.sectors.map((s) => (
+                                    {getAccessibleSectors(user, activeCompany).map((s) => (
                                         <option key={s.name} value={s.name}>
                                             {s.name}
                                         </option>

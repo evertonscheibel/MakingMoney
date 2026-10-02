@@ -1,3 +1,4 @@
+import { getAccessibleSectors } from '../utils/companyAccess';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,6 +35,10 @@ export default function ProcessList() {
         enabled: !!user?.activeCompanyId,
     });
 
+    const accessibleSectors = getAccessibleSectors(user, activeCompany);
+    const [notice, setNotice] = useState('');
+    const [reasonAction, setReasonAction] = useState<{process: Process; kind: 'revert' | 'active'} | null>(null);
+    const [actionReason, setActionReason] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [showDeliverModal, setShowDeliverModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -79,14 +84,14 @@ export default function ProcessList() {
         mutationFn: ({ overrides, openNext, sector }: { overrides?: any[], openNext: boolean, sector?: string }) =>
             cyclesApi.close(overrides, openNext, sector),
         onSuccess: (result) => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
             queryClient.invalidateQueries({ queryKey: ['currentCycle'] });
             queryClient.invalidateQueries({ queryKey: ['summary'] });
             setIsCloseModalOpen(false);
-            alert(result.message || 'Ciclo fechado com sucesso!');
+            setNotice(result.message || 'Ciclo fechado com sucesso!');
         },
         onError: (error: any) => {
-            alert(`Erro ao fechar ciclo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao fechar ciclo: ${error.response?.data?.message || error.message}`);
         }
     });
 
@@ -102,11 +107,11 @@ export default function ProcessList() {
         mutationFn: ({ month, sector }: { month: string; sector: string }) => cyclesApi.open(month, sector),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['currentCycle'] });
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
-            alert('Ciclo aberto com sucesso!');
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+            setNotice('Ciclo aberto com sucesso!');
         },
         onError: (error: any) => {
-            alert(`Erro ao abrir ciclo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao abrir ciclo: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -131,6 +136,7 @@ export default function ProcessList() {
             sortOrder,
         }),
         enabled: !!user?.activeCompanyId,
+        refetchInterval: query => query.state.data?.data?.some((p: Process) => p.deliveryStatus === DeliveryStatus.EMAIL_QUEUED) ? 2000 : false,
     });
 
     const { data: users } = useQuery({
@@ -145,11 +151,11 @@ export default function ProcessList() {
     const createMutation = useMutation({
         mutationFn: (data: ProcessForm) => processesApi.create(data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
             setShowModal(false);
         },
         onError: (error: any) => {
-            alert(`Erro ao criar processo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao criar processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -157,40 +163,39 @@ export default function ProcessList() {
         mutationFn: ({ id, data }: { id: string; data: Partial<ProcessForm> }) =>
             processesApi.update(id, data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
             setShowModal(false);
             setSelectedProcess(null);
         },
         onError: (error: any) => {
-            alert(`Erro ao salvar processo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao salvar processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
     const confirmDeliveryMutation = useMutation({
         mutationFn: ({ id, data }: { id: string; data: DeliverForm }) =>
             processesApi.confirmDelivery(id, data),
-        onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+        onSuccess: () => {
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
             queryClient.invalidateQueries({ queryKey: ['summary'] });
             setShowDeliverModal(false);
             setSelectedProcess(null);
 
-            // Auto-send delivery email
-            sendDeliveryEmailMutation.mutate(variables.id);
+            setNotice('Entrega confirmada. A notificação por e-mail permanece pendente de envio.');
         },
         onError: (error: any) => {
-            alert(`Erro ao confirmar entrega: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao confirmar entrega: ${error.response?.data?.message || error.message}`);
         },
     });
 
     const sendDeliveryEmailMutation = useMutation({
         mutationFn: (id: string) => processesApi.sendDeliveryEmail(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
-            alert('Email enviado com sucesso!');
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+            setNotice('E-mail colocado na fila de envio. O status será atualizado após o processamento.');
         },
         onError: (error: any) => {
-            alert(`Erro ao enviar email: ${error.message}`);
+            setNotice(`Erro ao enviar email: ${error.message}`);
         }
     });
 
@@ -198,30 +203,35 @@ export default function ProcessList() {
         mutationFn: ({ id, reason }: { id: string; reason: string }) =>
             processesApi.revertDelivery(id, reason),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
             queryClient.invalidateQueries({ queryKey: ['summary'] });
-            alert('Entrega desfeita com sucesso!');
+            setReasonAction(null);
+            setActionReason('');
+            setNotice('Entrega desfeita com sucesso!');
         },
+        onError: (error: Error) => setNotice(error.message),
     });
 
     const setActiveMutation = useMutation({
         mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
             processesApi.setActive(id, isActive, reason),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            setReasonAction(null);
+            setActionReason('');
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
         },
         onError: (error: any) => {
-            alert(`Erro ao alterar status do processo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao alterar status do processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
     const deleteMutation = useMutation({
         mutationFn: (id: string) => processesApi.delete(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
         },
         onError: (error: any) => {
-            alert(`Erro ao excluir processo: ${error.response?.data?.message || error.message}`);
+            setNotice(`Erro ao excluir processo: ${error.response?.data?.message || error.message}`);
         },
     });
 
@@ -229,12 +239,12 @@ export default function ProcessList() {
         mutationFn: (data: { file: File; sector: string; plannedDate: string; limitDate: string; responsibleUserId?: string }) =>
             processesApi.importProcesses(data.file, data),
         onSuccess: (response) => {
-            queryClient.invalidateQueries({ queryKey: ['processes'] });
-            alert(response.message || 'Processos importados com sucesso!');
+            ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+            setNotice(response.message || 'Processos importados com sucesso!');
             setShowImportModal(false);
         },
         onError: (error: any) => {
-            alert(`Erro na importação: ${error.response?.data?.error || error.message}`);
+            setNotice(`Erro na importação: ${error.response?.data?.error || error.message}`);
         },
     });
 
@@ -255,12 +265,12 @@ export default function ProcessList() {
         mutationFn: ({ id, to, message }: { id: string; to: string; message?: string }) =>
             api.post<{ success: boolean; message: string }>(`/processes/${id}/send-email`, { to, message }),
         onSuccess: (response) => {
-            alert(response.data.message || 'Email enviado com sucesso!');
+            setNotice(response.data.message || 'Email enviado com sucesso!');
             setShowEmailModal(false);
             setSelectedProcess(null);
         },
         onError: (error: any) => {
-            alert(`Erro ao enviar email: ${error.message}`);
+            setNotice(`Erro ao enviar email: ${error.message}`);
         }
     });
 
@@ -289,6 +299,12 @@ export default function ProcessList() {
         );
     };
 
+    useEffect(() => {
+        if (!isMasterUser && accessibleSectors.length && !accessibleSectors.some(s => s.name === sectorFilter)) {
+            setSectorFilter(accessibleSectors[0].name);
+        }
+    }, [user?.activeCompanyId, activeCompany, sectorFilter]);
+
     const getDeliveryStatusBadge = (process: Process) => {
         if (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) {
             return null;
@@ -308,6 +324,9 @@ export default function ProcessList() {
                     Email Enviado
                 </span>
             );
+        }
+        if (process.deliveryStatus === DeliveryStatus.EMAIL_QUEUED || process.deliveryStatus === DeliveryStatus.EMAIL_FAILED) {
+            return <span className="badge-warning">{process.deliveryStatus === DeliveryStatus.EMAIL_QUEUED ? 'E-mail na fila' : 'Falha no e-mail'}</span>;
         }
         return null;
     };
@@ -377,6 +396,22 @@ export default function ProcessList() {
 
     return (
         <div className="h-full flex flex-col gap-4 min-h-0">
+            {notice && <div role="alert" className="fixed top-4 right-4 z-[110] max-w-lg rounded-lg bg-white dark:bg-gray-900 border border-primary-300 shadow-xl p-4 flex items-start gap-3"><span>{notice}</span><button aria-label="Fechar mensagem" type="button" onClick={() => setNotice('')}>×</button></div>}
+            {reasonAction && (
+                <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
+                    <form role="dialog" aria-modal="true" aria-label="Motivo da alteração" className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4" onSubmit={e => {
+                        e.preventDefault();
+                        if (!actionReason.trim()) return;
+                        const {process, kind} = reasonAction;
+                        if (kind === 'revert') revertDeliveryMutation.mutate({id: process._id, reason: actionReason.trim()});
+                        else setActiveMutation.mutate({id: process._id, isActive: process.isActive === false, reason: actionReason.trim()});
+                    }}>
+                        <h2 className="text-lg font-semibold">{reasonAction.kind === 'revert' ? 'Reverter entrega' : 'Alterar atividade do processo'}</h2>
+                        <label className="block">Motivo<textarea autoFocus required className="input w-full mt-2" value={actionReason} onChange={e => setActionReason(e.target.value)} /></label>
+                        <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setReasonAction(null)}>Cancelar</button><button className="btn-primary" disabled={!actionReason.trim() || revertDeliveryMutation.isPending || setActiveMutation.isPending}>Confirmar alteração</button></div>
+                    </form>
+                </div>
+            )}
             {/* Header & Filters - Fixed at top of content area */}
             <div className="flex-none space-y-4 bg-gray-50 dark:bg-gray-950 pt-2 z-20 sticky top-0 sm:static">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -440,15 +475,11 @@ export default function ProcessList() {
                                 value={sectorFilter}
                                 onChange={(e) => setSectorFilter(e.target.value)}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                disabled={!!(isOperator || (isStrictManager && (user?.sectors?.length === 1 || (!user?.sectors?.length && user?.sector))))}
+                                disabled={accessibleSectors.length === 1 && !isMasterUser}
                             >
                                 {!isStrictManager && !isOperator && <option value="">Todos os setores</option>}
                                 {(isStrictManager || isOperator) && !sectorFilter && <option value="">Selecione seu setor</option>}
-                                {activeCompany?.sectors?.filter((s: any) => {
-                                    if (user?.roles.includes(UserRole.MASTER)) return true;
-                                    const name = typeof s === 'string' ? s : s.name;
-                                    return user?.sectors?.includes(name) || user?.sector === name;
-                                }).map((sector: any) => {
+                                {accessibleSectors.map((sector: any) => {
                                     const name = typeof sector === 'string' ? sector : sector.name;
                                     return (
                                         <option key={name} value={name}>{name}</option>
@@ -597,7 +628,7 @@ export default function ProcessList() {
                                     <td className="text-center">
                                         <div className="flex items-center justify-center gap-0.5 flex-wrap">
                                             {/* Delivery Actions based on deliveryStatus */}
-                                            {(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
                                                     onClick={() => {
                                                         setSelectedProcess(process);
@@ -609,13 +640,11 @@ export default function ProcessList() {
                                                     <CheckCircle className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            {process.deliveryStatus === DeliveryStatus.CONFIRMED_PENDING_EMAIL && (
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.CONFIRMED_PENDING_EMAIL, DeliveryStatus.EMAIL_FAILED].includes(process.deliveryStatus!) && (
                                                 <>
                                                     <button
                                                         onClick={() => {
-                                                            if (confirm('Enviar notificação de entrega por email?')) {
-                                                                sendDeliveryEmailMutation.mutate(process._id);
-                                                            }
+                                                            sendDeliveryEmailMutation.mutate(process._id);
                                                         }}
                                                         className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
                                                         disabled={sendDeliveryEmailMutation.isPending}
@@ -625,10 +654,8 @@ export default function ProcessList() {
                                                     </button>
                                                     <button
                                                         onClick={() => {
-                                                            const reason = prompt('Motivo para desfazer a entrega:');
-                                                            if (reason) {
-                                                                revertDeliveryMutation.mutate({ id: process._id, reason });
-                                                            }
+                                                            setActionReason('');
+                                                            setReasonAction({process, kind: 'revert'});
                                                         }}
                                                         className="p-1 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
                                                         title="Desfazer Confirmação"
@@ -637,16 +664,14 @@ export default function ProcessList() {
                                                     </button>
                                                 </>
                                             )}
-                                            {process.deliveryStatus === DeliveryStatus.EMAIL_SENT && !isOperator && (
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.EMAIL_SENT, DeliveryStatus.EMAIL_QUEUED].includes(process.deliveryStatus!) && (
                                                 <button
                                                     onClick={() => {
-                                                        const reason = prompt('Motivo para reverter a entrega (Admin):');
-                                                        if (reason) {
-                                                            revertDeliveryMutation.mutate({ id: process._id, reason });
-                                                        }
+                                                        setActionReason('');
+                                                        setReasonAction({process, kind: 'revert'});
                                                     }}
                                                     className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                                                    title="Reverter Entrega (Admin)"
+                                                    title="Reverter Entrega"
                                                 >
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
@@ -676,7 +701,7 @@ export default function ProcessList() {
                                                     }
                                                 }}
                                                 className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                disabled={(sendEmailMutation.isPending && selectedProcess?._id === process._id) || (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)}
+                                                disabled={(isOperator && String(process.responsibleUserId) !== String(user?.id || user?._id)) || (sendEmailMutation.isPending && selectedProcess?._id === process._id) || (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)}
                                                 title={(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)
                                                     ? "Necessário confirmar entrega antes de enviar"
                                                     : (isOperator ? "Enviar por email (destinatários configurados)" : "Enviar por email")}
@@ -686,16 +711,8 @@ export default function ProcessList() {
                                             {isMasterUser && (
                                                 <button
                                                     onClick={() => {
-                                                        const activating = process.isActive === false;
-                                                        const actionText = activating ? 'ativar' : 'inativar';
-                                                        const reason = prompt(`Motivo para ${actionText} este processo:`);
-                                                        if (reason && reason.trim()) {
-                                                            setActiveMutation.mutate({
-                                                                id: process._id,
-                                                                isActive: activating,
-                                                                reason: reason.trim(),
-                                                            });
-                                                        }
+                                                        setActionReason('');
+                                                        setReasonAction({process, kind: 'active'});
                                                     }}
                                                     className={`p-1 rounded-md transition-colors ${
                                                         process.isActive === false
@@ -798,7 +815,7 @@ export default function ProcessList() {
                                                     required
                                                 >
                                                     <option value="">Selecione...</option>
-                                                    {activeCompany?.sectors?.map((sector: any) => {
+                                                    {accessibleSectors.map((sector: any) => {
                                                         const name = typeof sector === 'string' ? sector : sector.name;
                                                         return (
                                                             <option key={name} value={name}>{name}</option>
@@ -809,6 +826,7 @@ export default function ProcessList() {
                                                     type="button"
                                                     onClick={() => setIsAddingSector(true)}
                                                     className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                                    disabled={!isMasterUser}
                                                     title="Adicionar novo setor"
                                                 >
                                                     <Plus className="w-4 h-4" />
@@ -1095,7 +1113,7 @@ export default function ProcessList() {
                                 const formData = new FormData(e.currentTarget);
                                 const file = (formData.get('file') as File);
                                 if (!file || file.size === 0) {
-                                    alert('Selecione um arquivo Excel.');
+                                    setNotice('Selecione um arquivo Excel.');
                                     return;
                                 }
                                 importMutation.mutate({
@@ -1124,10 +1142,11 @@ export default function ProcessList() {
                                     <label className="label">Setor para o lote</label>
                                     <select name="sector" className="input" required>
                                         <option value="">Selecione...</option>
-                                        {activeCompany?.sectors?.map((sector: any) => {
+                                        {accessibleSectors.map((sector: any) => {
                                             const name = typeof sector === 'string' ? sector : sector.name;
                                             return (
                                                 <option key={name} value={name}>{name}</option>
+
                                             );
                                         })}
                                     </select>

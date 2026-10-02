@@ -153,10 +153,10 @@ export function exportDetailedReportPDF(data: ReportData) {
             body: processes.map(p => [
                 p.code,
                 p.title,
-                new Date(p.plannedDate).toLocaleDateString('pt-BR'),
-                new Date(p.limitDate).toLocaleDateString('pt-BR'),
+                new Date(p.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+                new Date(p.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
                 typeof p.responsibleUserId === 'object' ? p.responsibleUserId.name : '-',
-                p.deliveryDate ? new Date(p.deliveryDate).toLocaleDateString('pt-BR') : '-',
+                p.deliveryDate ? new Date(p.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-',
                 p.score !== null ? p.score : '-'
             ]),
             theme: 'striped',

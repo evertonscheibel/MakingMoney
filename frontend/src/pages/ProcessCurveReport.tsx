@@ -284,8 +284,8 @@ export default function ProcessCurveReport() {
                                         {item.sector}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div>Planejado: {new Date(item.plannedDate).toLocaleDateString()}</div>
-                                        <div className="text-red-500 font-medium">Limite: {new Date(item.limitDate).toLocaleDateString()}</div>
+                                        <div>Planejado: {new Date(item.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</div>
+                                        <div className="text-red-500 font-medium">Limite: {new Date(item.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {item.responsible}

@@ -14,6 +14,7 @@ interface EmailOptions {
     entityType?: string;
     createdBy?: string;
     templateData?: Record<string, string | number>;
+    deliveryBatchId?: string;
 }
 
 export class EmailService {
@@ -50,8 +51,12 @@ export class EmailService {
                 category: options.category || 'general',
                 entityId: options.entityId ? new Types.ObjectId(options.entityId) : undefined,
                 entityType: options.entityType,
+                deliveryBatchId: options.deliveryBatchId,
                 createdByUserId: options.createdBy ? new Types.ObjectId(options.createdBy) : undefined,
-                status: EmailStatus.PENDING
+                status: EmailStatus.PENDING,
+                // Release delivery batches together after all recipients have
+                // been persisted; the worker must never observe half a batch.
+                ...(options.deliveryBatchId ? { nextAttemptAt: new Date('9999-01-01T00:00:00Z') } : {}),
             });
 
             logger.info(`[EmailService] Email queued for ${options.to}`);

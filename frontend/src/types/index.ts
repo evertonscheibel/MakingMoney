@@ -25,6 +25,8 @@ export enum DeliverySource {
 export enum DeliveryStatus {
     NOT_DELIVERED = 'NOT_DELIVERED',
     CONFIRMED_PENDING_EMAIL = 'CONFIRMED_PENDING_EMAIL',
+    EMAIL_QUEUED = 'EMAIL_QUEUED',
+    EMAIL_FAILED = 'EMAIL_FAILED',
     EMAIL_SENT = 'EMAIL_SENT'
 }
 
@@ -56,9 +58,10 @@ export interface User {
     name: string;
     email: string;
     roles: UserRole[];
+    globalRoles?: UserRole[];
     activeCompanyId: string | null;
     activeCompany?: Company | null;
-    companyAccess: { companyId: string; role: UserRole }[];
+    companyAccess: { companyId: string; role: UserRole; sectors?: string[] }[];
     isEmailVerified: boolean;
     emailVerificationToken?: string | null;
     allowedMenus: string[];

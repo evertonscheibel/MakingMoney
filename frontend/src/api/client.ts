@@ -31,7 +31,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error: AxiosError<{ error?: string; message?: string }>) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
             // Token expired or invalid
             localStorage.removeItem('token');
             window.location.href = '/login';

@@ -15,8 +15,9 @@ validateConfig();
 
 const app = express();
 
-// Enable 'trust proxy' so express-rate-limit correctly identifies IPs behind reverse proxy (like Nginx)
-app.set('trust proxy', true);
+// Trust only the known reverse-proxy hops so clients can't spoof X-Forwarded-For to dodge rate limits.
+// Production: host Nginx -> novafitness-frontend -> gestaopro-frontend -> backend = 3 hops.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 3));
 
 // Security middleware
 app.use(helmet());

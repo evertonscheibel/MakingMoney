@@ -19,13 +19,13 @@ export default function AuditLogs() {
     const [page, setPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState('');
 
-    const { data: auditData, isLoading: isLoadingAudit } = useQuery({
+    const { data: auditData, isLoading: isLoadingAudit, error: auditError } = useQuery({
         queryKey: ['auditLogs', page],
         queryFn: () => logsApi.listAuditLogs({ page, limit: 20 }),
         enabled: activeTab === 'audit' && !!user?.activeCompanyId,
     });
 
-    const { data: emailData, isLoading: isLoadingEmail } = useQuery({
+    const { data: emailData, isLoading: isLoadingEmail, error: emailError } = useQuery({
         queryKey: ['emailLogs', page, statusFilter],
         queryFn: () => logsApi.listEmailLogs({ page, limit: 20, status: statusFilter || undefined }),
         enabled: activeTab === 'email' && !!user?.activeCompanyId,
@@ -69,6 +69,7 @@ export default function AuditLogs() {
 
     return (
         <div className="space-y-6">
+            {(activeTab === 'audit' ? auditError : emailError) && <p role="alert" className="text-red-600">Não foi possível consultar os logs: {((activeTab === 'audit' ? auditError : emailError) as Error).message}</p>}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Logs de Auditoria</h1>
                 <p className="text-gray-500 dark:text-gray-400">

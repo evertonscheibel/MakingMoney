@@ -69,6 +69,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const filterItems = (items: any[]) => {
         return items.filter((item) => {
             if (item.alwaysVisible) return true;
+            if (['system-logs', 'email-logs'].includes(item.id) && !isMaster) return false;
             if (isMaster) return true;
             return hasMenuAccess(user?.allowedMenus, item.id);
         });
@@ -81,7 +82,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
         <aside
             className={`
-        fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] xl:w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800
+        fixed inset-y-0 left-0 z-50 w-[min(18rem,88vw)] xl:w-[17rem] bg-white dark:bg-gray-950 border-r border-slate-200 dark:border-slate-800
         transform transition-transform duration-200 ease-in-out
         flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -89,29 +90,40 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       `}
         >
             {/* Header */}
-            <div className="flex-none flex items-center justify-between h-24 px-4 border-b border-gray-200 dark:border-gray-800">
-                <div className="flex-1">
-                    <img src={chronosLogo} alt="Metodo Chronos Logo" className="w-full h-auto object-contain" />
+            <div className="relative flex-none h-[7.5rem] overflow-hidden bg-slate-950 border-b border-slate-800">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(22,163,74,0.24),transparent_44%)]" />
+                <div className="relative flex h-full items-center justify-between px-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="h-[5.25rem] w-[8.5rem] flex-none overflow-hidden rounded-2xl border border-white/10 bg-black shadow-lg shadow-black/30">
+                            <img src={chronosLogo} alt="Metodo Chronos Logo" className="h-full w-full scale-[1.32] object-contain" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-400">Método</p>
+                            <p className="mt-1 text-sm font-semibold leading-tight text-white">Gestão Chronos</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="ml-2 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
+                        aria-label="Fechar menu"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 xl:hidden"
-                    aria-label="Fechar menu"
-                >
-                    <X className="w-5 h-5 text-gray-500" />
-                </button>
             </div>
 
             {/* Company Selector */}
-            <div className="flex-none p-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex-none px-3 py-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                     <button
                         onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-                        className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary-300 hover:bg-white dark:hover:border-primary-800 dark:hover:bg-slate-900 transition-all shadow-sm"
                     >
                         <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-700 dark:text-gray-300 truncate">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-900/30">
+                                <Building2 className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                            </span>
+                            <span className="font-medium text-slate-700 dark:text-slate-200 truncate">
                                 {activeCompany?.name || 'Selecione uma empresa'}
                             </span>
                         </div>
@@ -156,14 +168,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 min-h-0 p-4 space-y-6 overflow-y-auto scrollbar-thin">
+            <nav className="flex-1 min-h-0 px-3 py-4 space-y-5 overflow-y-auto scrollbar-thin">
                 {menuGroups.map((group) => {
                     const filteredItems = filterItems(group.items);
                     if (filteredItems.length === 0) return null;
 
                     return (
                         <div key={group.title} className="space-y-1">
-                            <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                            <h3 className="px-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.16em] mb-2">
                                 {group.title}
                             </h3>
                             <div className="space-y-1">
@@ -173,14 +185,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         to={item.href}
                                         onClick={onClose}
                                         className={({ isActive }) =>
-                                            `flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive
-                                                ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
-                                                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white'
+                                            `group flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-all ${isActive
+                                                ? 'bg-primary-50 text-primary-700 shadow-sm ring-1 ring-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:ring-primary-900/40'
+                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'
                                             }`
                                         }
                                     >
-                                        <item.icon className="w-5 h-5" />
-                                        {item.name}
+                                        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-white group-hover:text-primary-600 dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-slate-800 dark:group-hover:text-primary-400">
+                                            <item.icon className="w-4 h-4" />
+                                        </span>
+                                        <span className="leading-tight">{item.name}</span>
                                     </NavLink>
                                 ))}
                             </div>
@@ -190,9 +204,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </nav>
 
             {/* User info at bottom */}
-            <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center">
+            <div className="flex-none px-3 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-xl flex items-center justify-center">
                         <span className="text-primary-700 dark:text-primary-400 font-medium text-sm">
                             {user?.name?.charAt(0).toUpperCase()}
                         </span>
@@ -202,11 +216,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                     </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50 flex flex-col items-center gap-2">
-                    <p className="text-[10px] text-center text-gray-400 dark:text-gray-500 font-medium tracking-wider uppercase">
-                        Desenvolvido por
-                    </p>
-                    <img src={logo} alt="BridgeLogic Logo" className="w-full h-auto object-contain transition-all" />
+                <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-1 overflow-hidden">
+                    <span className="text-[8px] text-slate-500 font-semibold tracking-[0.16em] uppercase whitespace-nowrap">Por</span>
+                    <div className="h-11 w-32 overflow-hidden">
+                        <img src={logo} alt="BridgeLogic Logo" className="h-full w-full scale-[1.32] object-contain" />
+                    </div>
                 </div>
             </div>
         </aside>

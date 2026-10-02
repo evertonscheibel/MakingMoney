@@ -6,6 +6,8 @@ import { auditAction } from '../middleware/audit';
 import { logger } from '../config';
 import { AuditAction, EntityType, CycleStatus, ProcessStatus, UserRole, DeliveryStatus } from '../types';
 import { Types } from 'mongoose';
+import { assertSectorAccess } from '../utils/processAccess';
+import { getCompanyRole } from '../utils/permissions';
 import { calculatePercentage, calculateAverage, getEffectiveSectors, isSectorManager } from '../utils';
 
 // Validation rules
@@ -30,7 +32,7 @@ export const listCycles = asyncHandler(async (req: Request, res: Response): Prom
     let { month, status, sector } = req.query;
 
     const { roles, userId, sectors: userSectors, sector: legacySector } = req.user!;
-    const isAdminOrMaster = roles.includes(UserRole.MASTER);
+    const isAdminOrMaster = getCompanyRole(req.user!, activeCompanyId) === UserRole.MASTER;
 
     // Get all allowed sectors for this user
     const company = await (await import('../models')).Company.findById(activeCompanyId);
@@ -92,7 +94,7 @@ export const getCurrentCycle = asyncHandler(async (req: Request, res: Response):
     let { sector } = req.query;
 
     const { roles, userId, sectors: userSectors, sector: legacySector } = req.user!;
-    const isAdminOrMaster = roles.includes(UserRole.MASTER);
+    const isAdminOrMaster = getCompanyRole(req.user!, activeCompanyId) === UserRole.MASTER;
 
     // Get all allowed sectors for this user
     const company = await (await import('../models')).Company.findById(activeCompanyId);
@@ -174,9 +176,10 @@ export const openCycle = asyncHandler(async (req: Request, res: Response): Promi
     const { roles } = req.user!;
     const activeCompanyId = req.companyId!;
     const { month, sector } = req.body;
+    await assertSectorAccess(req, sector, true);
 
     // Check permissions
-    if (roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER)) {
+    if (getCompanyRole(req.user!, activeCompanyId) === UserRole.OPERATOR) {
         throw new AppError('Operators are not allowed to open cycles', 403);
     }
 
@@ -271,6 +274,8 @@ export const previewCloseCycle = asyncHandler(async (req: Request, res: Response
     const activeCompanyId = req.companyId!;
 
     const { sector } = req.query;
+    if (!sector) throw new AppError("Selecione um setor para fechar o ciclo.", 400);
+    await assertSectorAccess(req, String(sector), true);
 
     const filter: any = {
         companyId: activeCompanyId,
@@ -337,13 +342,15 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
     const { overrides, openNext = true, sector } = req.body; // Array of { originalId, plannedDate, limitDate }
 
     // Check permissions
-    if (roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER)) {
+    if (getCompanyRole(req.user!, activeCompanyId) === UserRole.OPERATOR) {
         throw new AppError('Operators are not allowed to close cycles', 403);
     }
 
     if (!sector) {
         throw new AppError('Explicit sector is required to close a cycle', 400);
     }
+
+    await assertSectorAccess(req, sector, true);
 
     const filter: any = {
         companyId: activeCompanyId,
@@ -466,6 +473,7 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
                 revertedBy: null,
                 revertedAt: null,
                 emailSentAt: null,
+                deliveryEmailBatchId: null,
             };
         });
 
@@ -598,6 +606,8 @@ export const getCycle = asyncHandler(async (req: Request, res: Response): Promis
         throw new NotFoundError('Cycle');
     }
 
+    await assertSectorAccess(req, cycle.sector);
+
     res.json({
         success: true,
         data: cycle,
@@ -616,12 +626,13 @@ export const resetCycle = asyncHandler(async (req: Request, res: Response): Prom
 
     // Check permissions (Manager or Admin)
     const { UserRole } = await import('../types');
-    if (!req.user!.roles.includes(UserRole.MANAGER) && !req.user!.roles.includes(UserRole.MASTER)) {
+    if (getCompanyRole(req.user!, activeCompanyId) === UserRole.OPERATOR) {
         throw new AppError('Only Managers or Admins can reset a cycle', 403);
     }
 
     const cycle = await Cycle.findOne({ _id: id, companyId: activeCompanyId });
     if (!cycle) throw new NotFoundError('Cycle');
+    await assertSectorAccess(req, cycle.sector, true);
 
     if (cycle.status !== CycleStatus.OPEN) {
         throw new AppError('Only open cycles can be reset', 400);
@@ -653,6 +664,7 @@ export const resetCycle = asyncHandler(async (req: Request, res: Response): Prom
                 deliveryEvidence: null,
                 score: null,
                 emailSentAt: null,
+                deliveryEmailBatchId: null,
                 revertReason: null,
                 revertedBy: null,
                 revertedAt: null,
@@ -698,9 +710,15 @@ export const restoreCycle = asyncHandler(async (req: Request, res: Response): Pr
     const activeCompanyId = req.companyId!;
     const { UserRole } = await import('../types');
 
-    if (!req.user!.roles.includes(UserRole.MANAGER) && !req.user!.roles.includes(UserRole.MASTER)) {
+    if (getCompanyRole(req.user!, activeCompanyId) === UserRole.OPERATOR) {
         throw new AppError('Only Managers or Admins can restore a cycle', 403);
     }
+
+    const cycle = await Cycle.findOne({ _id: id, companyId: activeCompanyId });
+    if (!cycle) throw new NotFoundError('Cycle');
+    await assertSectorAccess(req, cycle.sector, true);
+
+    if (cycle.status !== CycleStatus.OPEN) throw new AppError("O ciclo fechado não pode ser alterado.", 400);
 
     const { CycleRestorePoint } = await import('../models/CycleRestorePoint');
 
@@ -714,15 +732,12 @@ export const restoreCycle = asyncHandler(async (req: Request, res: Response): Pr
         throw new AppError('No restore point found for this cycle', 404);
     }
 
-    const cycle = await Cycle.findOne({ _id: id, companyId: activeCompanyId });
-    if (!cycle) throw new NotFoundError('Cycle');
-
     // Restore processes
     // We do this in bulk for efficiency
     const bulkOps = restorePoint.processes.map((p: any) => ({
         updateOne: {
             filter: { _id: p._id },
-            update: { $set: p } // Restore all fields from snapshot
+            update: { $set: { ...p, deliveryEmailBatchId: null, deliveryStatus: p.deliveryStatus === DeliveryStatus.EMAIL_QUEUED ? DeliveryStatus.CONFIRMED_PENDING_EMAIL : p.deliveryStatus } } // Restore all fields from snapshot
         }
     }));
 
@@ -761,6 +776,10 @@ export const checkRestorePoint = asyncHandler(async (req: Request, res: Response
     const activeCompanyId = req.companyId!;
     const { CycleRestorePoint } = await import('../models/CycleRestorePoint');
 
+    const cycle = await Cycle.findOne({ _id: id, companyId: activeCompanyId });
+    if (!cycle) throw new NotFoundError('Cycle');
+    await assertSectorAccess(req, cycle.sector);
+
     const exists = await CycleRestorePoint.exists({
         cycleId: id,
         companyId: activeCompanyId
@@ -782,16 +801,13 @@ export const reopenCycle = asyncHandler(async (req: Request, res: Response): Pro
     const activeCompanyId = req.companyId!;
     const { UserRole } = await import('../types');
 
-    if (roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER)) {
+    if (getCompanyRole(req.user!, activeCompanyId) === UserRole.OPERATOR) {
         throw new AppError('Operators are not allowed to reopen cycles', 403);
-    }
-
-    if (!roles.includes(UserRole.MANAGER) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MASTER)) {
-        throw new AppError('Only Managers, Admins or Masters can reopen a cycle', 403);
     }
 
     const cycle = await Cycle.findOne({ _id: id, companyId: activeCompanyId });
     if (!cycle) throw new NotFoundError('Cycle');
+    await assertSectorAccess(req, cycle.sector, true);
 
     if (cycle.status === CycleStatus.OPEN) {
         throw new AppError('Cycle is already open', 400);

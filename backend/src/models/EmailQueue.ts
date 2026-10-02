@@ -19,6 +19,7 @@ export interface IEmailQueue {
     category?: string; // e.g., 'alert', 'reset-password'
     entityId?: Schema.Types.ObjectId; // e.g., Ticket ID, User ID
     entityType?: string;
+    deliveryBatchId?: string;
     createdByUserId?: Schema.Types.ObjectId;
 
     // Control
@@ -46,6 +47,7 @@ const emailQueueSchema = new Schema<IEmailQueueDocument>(
         category: { type: String },
         entityId: { type: Schema.Types.ObjectId },
         entityType: { type: String },
+        deliveryBatchId: { type: String },
         createdByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
 
         status: {

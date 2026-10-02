@@ -1,3 +1,4 @@
+import { getCompanySectorScope } from '../utils/processAccess';
 import { Request, Response } from 'express';
 import { query } from 'express-validator';
 import { Process, Cycle } from '../models';
@@ -25,19 +26,20 @@ export const getMyMetrics = asyncHandler(async (req: Request, res: Response): Pr
         isActive: { $ne: false },
     };
 
+    const scope = await getCompanySectorScope(req);
+    if (scope !== null) matchStage.sector = { $in: scope };
+
     if (cycleId) {
         matchStage.cycleId = new Types.ObjectId(cycleId as string);
     } else if (period) {
         const [year, month] = (period as string).split('-').map(Number);
-        const startOfMonth = new Date(year, month - 1, 1);
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+        const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
         matchStage.plannedDate = { $gte: startOfMonth, $lte: endOfMonth };
     } else {
         // Default to current open cycle
-        const currentCycle = await Cycle.findOne({ companyId, status: CycleStatus.OPEN });
-        if (currentCycle) {
-            matchStage.cycleId = currentCycle._id;
-        }
+        const cycles = await Cycle.find({ companyId, status: CycleStatus.OPEN, ...(scope === null ? {} : { sector: { $in: scope } }) }).select('_id');
+        matchStage.cycleId = { $in: cycles.map(c => c._id) };
     }
 
     const metrics = await Process.aggregate([
@@ -82,27 +84,19 @@ export const getTeamMetrics = asyncHandler(async (req: Request, res: Response): 
         isActive: { $ne: false },
     };
 
+    const scope = await getCompanySectorScope(req);
+    if (scope !== null) matchStage.sector = { $in: scope };
+
     if (cycleId) {
         matchStage.cycleId = new Types.ObjectId(cycleId as string);
     } else if (period) {
         const [year, month] = (period as string).split('-').map(Number);
-        const startOfMonth = new Date(year, month - 1, 1);
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+        const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
         matchStage.plannedDate = { $gte: startOfMonth, $lte: endOfMonth };
     } else {
-        const currentCycle = await Cycle.findOne({ companyId, status: CycleStatus.OPEN });
-        if (currentCycle) {
-            matchStage.cycleId = currentCycle._id;
-        }
-    }
-
-    // Operators only see their sector metrics
-    if (roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER)) {
-        if (!req.user!.sector) {
-            res.json({ success: true, data: { averageScore: 0, count: 0 } });
-            return;
-        }
-        matchStage.sector = req.user!.sector;
+        const cycles = await Cycle.find({ companyId, status: CycleStatus.OPEN, ...(scope === null ? {} : { sector: { $in: scope } }) }).select('_id');
+        matchStage.cycleId = { $in: cycles.map(c => c._id) };
     }
 
     const metrics = await Process.aggregate([

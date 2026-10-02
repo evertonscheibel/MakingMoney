@@ -32,7 +32,7 @@ export default function EmailLogs() {
     const [statusFilter, setStatusFilter] = useState('');
     const [page, setPage] = useState(1);
 
-    const { data, isLoading, refetch } = useQuery({
+    const { data, isLoading, refetch, error } = useQuery({
         queryKey: ['emailLogs', { search, status: statusFilter, page }],
         queryFn: async () => {
             const params = new URLSearchParams();
@@ -79,6 +79,7 @@ export default function EmailLogs() {
 
     return (
         <div className="space-y-6">
+            {error && <p role="alert" className="text-red-600">Não foi possível consultar os logs: {(error as Error).message}</p>}
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

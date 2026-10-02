@@ -1,3 +1,5 @@
+import { formatBusinessDate } from '../utils/businessDate';
+import { getAccessibleSectors } from '../utils/companyAccess';
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cyclesApi, processesApi, companiesApi } from '../api';
@@ -29,18 +31,17 @@ export default function ClosedCycles() {
     const { user, hasRole } = useAuth();
 
     const canReopen = (hasRole(UserRole.MASTER) || hasRole(UserRole.MANAGER)) && !user?.roles.includes(UserRole.OPERATOR);
-    const isStrictManager = user?.roles.includes(UserRole.MANAGER) && !user?.roles.includes(UserRole.MASTER);
 
     // Fetch active company to get sectors list (only for Admins/Masters who can switch sectors)
     const { data: activeCompany } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!),
-        enabled: !!user?.activeCompanyId && !isStrictManager,
+        enabled: !!user?.activeCompanyId,
     });
 
     useEffect(() => {
         loadClosedCycles();
-    }, [selectedSector]);
+    }, [selectedSector, user?.activeCompanyId]);
 
     const loadClosedCycles = async () => {
         try {
@@ -136,7 +137,7 @@ export default function ClosedCycles() {
             loadClosedCycles();
         } catch (error: any) {
             console.error('Failed to reopen cycle:', error);
-            const message = error.response?.data?.error || 'Erro ao reabrir ciclo';
+            const message = error.response?.data?.error || error.message || 'Erro ao reabrir ciclo';
             alert(message);
         }
     };
@@ -223,7 +224,7 @@ export default function ClosedCycles() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {process.deliveryDate ? new Date(process.deliveryDate).toLocaleDateString('pt-BR') : '-'}
+                                            {process.deliveryDate ? formatBusinessDate(process.deliveryDate) : '-'}
                                         </td>
                                     </tr>
                                 ))}
@@ -243,7 +244,7 @@ export default function ClosedCycles() {
                     <p className="text-gray-500">Visualize os ciclos fechados e seus indicadores</p>
                 </div>
 
-                {!user?.roles.includes(UserRole.OPERATOR) && !isStrictManager && (
+                {!!user && (
                     <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
                         <Filter className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-700">Setor:</span>
@@ -253,7 +254,7 @@ export default function ClosedCycles() {
                             className="text-sm font-medium text-gray-700 outline-none bg-transparent"
                         >
                             <option value="">Todos os Setores (Consolidado)</option>
-                            {activeCompany?.sectors.map((s: any) => (
+                            {getAccessibleSectors(user, activeCompany).map((s: any) => (
                                 <option key={s.name} value={s.name}>
                                     {s.name}
                                 </option>

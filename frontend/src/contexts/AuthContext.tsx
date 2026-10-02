@@ -1,3 +1,5 @@
+import { normalizeCompanyUser } from '../utils/companyAccess';
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { authApi, companiesApi } from '../api';
 import { User, Company, UserRole } from '../types';
@@ -23,6 +25,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const queryClient = useQueryClient();
     const [user, setUser] = useState<User | null>(null);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(localStorage.getItem('selectedCompanyId'));
@@ -35,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const token = localStorage.getItem('token');
         if (token) {
-            loadUser();
+            loadUser().catch(() => {});
         } else {
             hasAttemptedAutoLogin.current = true;
             setIsLoading(false);
@@ -43,13 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [isLoading]);
 
     async function loadUser() {
+        hasAttemptedAutoLogin.current = true;
         try {
             const [userData, companiesData] = await Promise.all([
                 authApi.me(),
                 companiesApi.list(),
             ]);
 
-            setUser(userData);
+            setUser(normalizeCompanyUser(userData));
             setCompanies(companiesData);
 
             // Auto-select company if only one is allowed or if one is already active
@@ -62,11 +66,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setSelectedCompanyId(autoCompanyId);
                 localStorage.setItem('selectedCompanyId', autoCompanyId);
                 // Update user state with the new activeCompanyId
-                setUser({ ...userData, activeCompanyId: autoCompanyId });
+                setUser(normalizeCompanyUser({ ...userData, activeCompanyId: autoCompanyId }));
             }
         } catch (error) {
             console.error('Failed to load user:', error);
             localStorage.removeItem('token');
+            localStorage.removeItem('selectedCompanyId');
+            setUser(null);
+            setCompanies([]);
+            setSelectedCompanyId(null);
+            queryClient.clear();
+            throw error;
         } finally {
             setIsLoading(false);
         }
@@ -76,24 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await authApi.login(email, password);
         localStorage.setItem('token', response.token);
 
-        const userData = response.user;
-        setUser(userData);
-
-        // Load companies after login
-        const companiesData = await companiesApi.list();
-        setCompanies(companiesData);
-
-        // Auto-select company on login
-        if (userData.activeCompanyId) {
-            setSelectedCompanyId(userData.activeCompanyId);
-            localStorage.setItem('selectedCompanyId', userData.activeCompanyId);
-        } else if (userData.allowedCompanyIds && userData.allowedCompanyIds.length === 1) {
-            const autoCompanyId = userData.allowedCompanyIds[0];
-            await authApi.switchCompany(autoCompanyId);
-            setSelectedCompanyId(autoCompanyId);
-            localStorage.setItem('selectedCompanyId', autoCompanyId);
-            setUser({ ...userData, activeCompanyId: autoCompanyId });
-        }
+        queryClient.clear();
+        localStorage.removeItem('selectedCompanyId');
+        await loadUser();
     }
 
     async function register(data: any) {
@@ -110,6 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     function logout() {
         localStorage.removeItem('token');
+        localStorage.removeItem('selectedCompanyId');
+        queryClient.clear();
+        setSelectedCompanyId(null);
         setUser(null);
         setCompanies([]);
     }
@@ -119,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await authApi.switchCompany(companyId);
             setSelectedCompanyId(companyId);
             localStorage.setItem('selectedCompanyId', companyId);
+            queryClient.clear();
+            await loadUser();
         } catch (error) {
             console.error('Failed to switch company:', error);
             throw error; // Let the component handle the error UI

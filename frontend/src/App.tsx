@@ -66,7 +66,7 @@ function PermissionRoute({ children, id }: { children: React.ReactNode; id: stri
         return <>{children}</>;
     }
 
-    if (!hasMenuAccess(user?.allowedMenus, id)) {
+    if (['system-logs', 'email-logs'].includes(id) || !hasMenuAccess(user?.allowedMenus, id)) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center">

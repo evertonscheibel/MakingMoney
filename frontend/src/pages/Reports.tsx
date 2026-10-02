@@ -1,3 +1,5 @@
+import { formatBusinessDate } from '../utils/businessDate';
+import { getAccessibleSectors } from '../utils/companyAccess';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, companiesApi, cyclesApi } from '../api';
@@ -150,7 +152,7 @@ export default function Reports() {
                             onChange={(e) => setSelectedSector(e.target.value)}
                         >
                             <option value="">Todos os Setores</option>
-                            {company?.sectors.map(s => (
+                            {getAccessibleSectors(user, company).map(s => (
                                 <option key={s.name} value={s.name}>{s.name}</option>
                             ))}
                         </select>
@@ -234,7 +236,7 @@ export default function Reports() {
 
             {/* Report visualization */}
             {viewMode === 'calendar' ? (
-                <ProcessScheduleCalendar processes={filteredProcesses} period={calendarPeriod} />
+                <ProcessScheduleCalendar processes={filteredProcesses} period={calendarPeriod} editable={!cycles?.some(c => c.month === calendarPeriod && (!selectedSector || c.sector === selectedSector) && c.status === 'CLOSED')} />
             ) : (
             <div className="card print:shadow-none print:border">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -274,10 +276,10 @@ export default function Reports() {
                                                     <td className="font-mono text-sm">{p.code}</td>
                                                     <td className="max-w-xs truncate">{p.title}</td>
                                                     <td className="text-sm">
-                                                        {new Date(p.plannedDate).toLocaleDateString('pt-BR')}
+                                                        {formatBusinessDate(p.plannedDate)}
                                                     </td>
                                                     <td className="text-sm">
-                                                        {new Date(p.limitDate).toLocaleDateString('pt-BR')}
+                                                        {formatBusinessDate(p.limitDate)}
                                                     </td>
                                                     <td className="text-sm">
                                                         {typeof p.responsibleUserId === 'object' && p.responsibleUserId !== null
@@ -286,7 +288,7 @@ export default function Reports() {
                                                     </td>
                                                     <td className="text-sm">
                                                         {p.deliveryDate
-                                                            ? new Date(p.deliveryDate).toLocaleDateString('pt-BR')
+                                                            ? formatBusinessDate(p.deliveryDate)
                                                             : '-'}
                                                     </td>
                                                     <td className="font-semibold">

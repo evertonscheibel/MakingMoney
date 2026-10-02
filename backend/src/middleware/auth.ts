@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config, logger } from '../config';
 import { User } from '../models';
 import { AuthenticatedUser, UserRole } from '../types';
+import { getCompanyRole } from '../utils/permissions';
 
 interface JWTPayload {
     userId: string;
@@ -106,7 +107,9 @@ export function authorize(...allowedRoles: UserRole[]) {
             return;
         }
 
-        const hasRole = req.user.roles.some((role) => allowedRoles.includes(role));
+        const hasRole = req.companyId
+            ? allowedRoles.includes(getCompanyRole(req.user, req.companyId))
+            : req.user.roles.some((role) => allowedRoles.includes(role));
 
         if (!hasRole) {
             res.status(403).json({

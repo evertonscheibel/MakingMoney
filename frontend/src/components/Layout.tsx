@@ -44,7 +44,7 @@ export default function Layout({ children }: LayoutProps) {
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
             {/* Main content */}
-            <div className="flex-1 flex flex-col min-w-0 xl:pl-64">
+            <div className="flex-1 flex flex-col min-w-0 xl:pl-[17rem]">
                 <Header onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Global Info Bar */}

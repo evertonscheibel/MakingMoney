@@ -2,6 +2,9 @@ import nodemailer from 'nodemailer';
 import { EmailQueue, EmailConfig, EmailLog, EmailStatus, EmailLogStatus, SMTPSecurityMode } from '../../models';
 import { logger } from '../../config';
 import { decrypt } from '../../utils/crypto';
+import { Process } from '../../models';
+import { DeliveryStatus } from '../../types';
+import { syncDeliveryEmailStatus } from './deliveryStatus';
 
 export class EmailWorker {
     private isRunning = false;
@@ -56,6 +59,14 @@ export class EmailWorker {
 
             if (!current) return; // Already picked up
 
+            if (current.category === 'process_delivery' && current.deliveryBatchId) {
+                const valid = await Process.exists({ _id: current.entityId, companyId: current.companyId, deliveryEmailBatchId: current.deliveryBatchId, deliveryStatus: DeliveryStatus.EMAIL_QUEUED });
+                if (!valid) {
+                    await EmailQueue.updateOne({ _id: current._id }, { $set: { status: EmailStatus.FAILED, lastError: 'Confirmação de entrega cancelada ou substituída.' } });
+                    return;
+                }
+            }
+
             // Get Config
             const config = await EmailConfig.findOne({ companyId: current.companyId, isActive: true });
 
@@ -97,6 +108,7 @@ export class EmailWorker {
                 status: EmailStatus.SENT,
                 updatedAt: new Date()
             });
+            await syncDeliveryEmailStatus(current);
 
             // Log
             await EmailLog.create({
@@ -135,6 +147,7 @@ export class EmailWorker {
                 lastError: error.message,
                 updatedAt: new Date()
             });
+            await syncDeliveryEmailStatus(item);
 
             // Log Failure
             await EmailLog.create({

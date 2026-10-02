@@ -1,8 +1,11 @@
+import { randomUUID } from 'crypto';
+import { getCompanyRole } from '../utils/permissions';
+import { assertSectorAccess, assertOpenProcess, assertResponsibleAccess } from '../utils/processAccess';
 import { Request, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import { asyncHandler, NotFoundError, AppError } from '../middleware/errors';
 import { auditAction } from '../middleware/audit';
-import { AuditAction, EntityType, CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
+import { AuditAction, EntityType, CycleStatus, DeliverySource, DeliveryStatus, ProcessStatus, UserRole } from '../types';
 import { Types } from 'mongoose';
 import { calculateScore, getPendingStatus, getEffectiveSectors, isSectorManager } from '../utils';
 import { logger } from '../config';
@@ -56,6 +59,8 @@ export const setProcessActiveValidation = [
 export const listProcessesValidation = [
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
     query('sector').optional().trim(),
+    query('month').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/),
+    query('cycleStatus').optional().isIn(Object.values(CycleStatus)),
     query('status').optional().isIn(Object.values(ProcessStatus)),
     query('deliveryMode').optional().isIn(['ALL', 'DELIVERED_FIRST', 'NOT_DELIVERED_FIRST', 'DELIVERED_ONLY', 'NOT_DELIVERED_ONLY']),
     query('sortBy').optional().isIn(['plannedDate', 'limitDate', 'deliveryDate', 'code', 'title', 'sector', 'status']),
@@ -71,6 +76,8 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     const companyId = req.companyId!;
     const {
         cycleId,
+        month,
+        cycleStatus,
         sector,
         status,
         search,
@@ -91,7 +98,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
 
     // A user is MASTER if they have the MASTER role globally OR specifically for this company
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
 
     const filter: Record<string, any> = { companyId };
 
@@ -137,13 +144,15 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     }
 
     if (cycleId) {
-        filter.cycleId = cycleId;
-    } else if (filter.sector && typeof filter.sector === 'string') {
-        const currentCycle = await Cycle.findOne({ companyId, sector: filter.sector, status: CycleStatus.OPEN }).sort({ month: -1 });
-        if (currentCycle) { filter.cycleId = currentCycle._id; }
-    } else if (!sector) {
-        const cycles = await Cycle.find({ companyId, status: CycleStatus.OPEN });
-        if (cycles.length > 0) { filter.cycleId = { $in: cycles.map(c => c._id) }; }
+        const cycle = await Cycle.findOne({ _id: cycleId, companyId });
+        filter.cycleId = cycle?._id || { $in: [] };
+    } else {
+        const cycleFilter: Record<string, any> = { companyId };
+        if (month) cycleFilter.month = month;
+        cycleFilter.status = cycleStatus || (month ? { $in: [CycleStatus.OPEN, CycleStatus.CLOSED] } : CycleStatus.OPEN);
+        if (sector) cycleFilter.sector = sector;
+        const cycles = await Cycle.find(cycleFilter);
+        filter.cycleId = { $in: cycles.map(c => c._id) };
     }
 
     if (status) { filter.status = status; }
@@ -235,12 +244,14 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
 
     if (!isMaster && !isManager) {
         throw new AppError('Apenas administradores e gestores podem criar processos.', 403);
     }
 
+    await assertSectorAccess(req, sector, true);
+    await assertResponsibleAccess(req, responsibleUserId, sector);
     const cycle = await Cycle.findOne({ companyId, sector, status: CycleStatus.OPEN });
     if (!cycle) { throw new AppError(`Nenhum ciclo aberto para o setor "${sector}". Abra um ciclo para este setor no Dashboard antes de criar processos.`, 400); }
 
@@ -249,7 +260,7 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
 
     const planned = new Date(plannedDate);
     const limit = new Date(limitDate);
-    if (limit < planned) { throw new AppError('Limit date cannot be before planned date', 400); }
+    if (limit < planned) { throw new AppError('A data limite não pode ser anterior à data planejada.', 400); }
 
     let finalCode = code;
     if (!finalCode) {
@@ -287,6 +298,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, false);
 
     const cycle = await Cycle.findById(process.cycleId);
     if (!cycle || cycle.status !== CycleStatus.OPEN) { throw new AppError('Cannot modify process in a closed cycle', 400); }
@@ -294,7 +306,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
 
     if (!isMaster && !isManager) {
         throw new AppError('Apenas administradores e gestores podem alterar os dados básicos de processos.', 403);
@@ -315,6 +327,8 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     // and PATCH /processes/:id/active. Bundling it into this generic update
     // previously caused every process a MASTER saved to be silently
     // deactivated, since this form has no "active" field at all.
+    if (updates.sector && updates.sector !== process.sector) throw new AppError('Crie o processo no ciclo do setor de destino; o setor não pode ser alterado nesta edição.', 400);
+    await assertResponsibleAccess(req, updates.responsibleUserId, updates.sector || process.sector);
     const before = process.toObject();
     const scheduleChanged = Boolean(
         (updates.plannedDate && new Date(updates.plannedDate).getTime() !== process.plannedDate.getTime()) ||
@@ -328,24 +342,24 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     if (updates.limitDate) process.limitDate = new Date(updates.limitDate);
     if (updates.responsibleUserId !== undefined) process.responsibleUserId = updates.responsibleUserId as any;
 
-    if (process.limitDate < process.plannedDate) { throw new AppError('Limit date cannot be before planned date', 400); }
+    if (process.limitDate < process.plannedDate) { throw new AppError('A data limite não pode ser anterior à data planejada.', 400); }
     if (!process.deliveryDate) { process.status = getPendingStatus(process.plannedDate, process.limitDate); }
 
     await process.save();
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
+    await auditAction(req, AuditAction.REVERT_DELIVERY, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
 
     if (scheduleChanged) {
         const company = await Company.findById(companyId);
         const sectorConfig = company?.sectors.find(s => s.name === process.sector) as any;
         const managerIds = [...new Set([...(sectorConfig?.managerIds || []), ...(sectorConfig?.managerId ? [sectorConfig.managerId] : [])].map(String))];
-        const managers = await User.find({ _id: { $in: managerIds } }).select('email name');
+        const managers = await User.find({ _id: { $in: managerIds }, 'companyAccess.companyId': companyId }).select('email name');
         for (const manager of managers) {
             await EmailService.enqueue(companyId as any, {
                 to: manager.email,
                 subject: `Cronograma alterado: ${process.code} - ${process.title}`,
-                html: `<p>Olá ${manager.name},</p><p>O processo <strong>${process.code} - ${process.title}</strong> foi reagendado.</p><p>Data planejada: <strong>${process.plannedDate.toLocaleDateString('pt-BR')}</strong><br>Data limite: <strong>${process.limitDate.toLocaleDateString('pt-BR')}</strong></p>`,
+                html: `<p>Olá ${manager.name},</p><p>O processo <strong>${process.code} - ${process.title}</strong> foi reagendado.</p><p>Data planejada: <strong>${process.plannedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong><br>Data limite: <strong>${process.limitDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong></p>`,
                 category: 'schedule_changed', entityId: process._id.toString(), entityType: 'Process', createdBy: userId,
-                templateData: { managerName: manager.name, processCode: process.code, processTitle: process.title, plannedDate: process.plannedDate.toLocaleDateString('pt-BR'), limitDate: process.limitDate.toLocaleDateString('pt-BR') }
+                templateData: { managerName: manager.name, processCode: process.code, processTitle: process.title, plannedDate: process.plannedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }), limitDate: process.limitDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) }
             });
         }
     }
@@ -354,7 +368,7 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
 });
 
 /**
- * Activate or deactivate a process — the ONLY path allowed to change
+ * Activate or deactivate a process â€” the ONLY path allowed to change
  * isActive. Kept separate from updateProcess (and requiring a reason) on
  * purpose: a generic "edit title/dates" form should never be able to
  * silently deactivate a process, which is exactly what happened before this
@@ -371,6 +385,7 @@ export const setProcessActive = asyncHandler(async (req: Request, res: Response)
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, false);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
@@ -416,6 +431,7 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, true);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
@@ -428,9 +444,11 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
 
-    if (globalRoles.includes(UserRole.OPERATOR) && !globalRoles.includes(UserRole.MASTER) && !globalRoles.includes(UserRole.MANAGER) && process.responsibleUserId?.toString() !== userId) {
+    if (getCompanyRole(req.user!, companyId) === UserRole.OPERATOR && process.responsibleUserId?.toString() !== userId) {
         throw new AppError('You can only report delivery for processes assigned to you', 403);
     }
+
+    if (process.deliveryStatus && process.deliveryStatus !== DeliveryStatus.NOT_DELIVERED) throw new AppError('Entrega já confirmada. Reverta antes de registrar outra entrega.', 400);
 
     const evalConfig = await EvaluationConfig.findOne({ companyId, isActive: true });
     const rules = evalConfig?.rules || getDefaultRules();
@@ -438,6 +456,9 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
     const delivery = new Date(deliveryDate);
     const { score, status } = calculateScore(process.plannedDate, process.limitDate, delivery, rules);
 
+    process.deliveryStatus = DeliveryStatus.CONFIRMED_PENDING_EMAIL;
+    process.deliveryEmailBatchId = null;
+    process.emailSentAt = null;
     process.deliveryDate = delivery;
     process.deliverySource = DeliverySource.MANUAL;
     process.deliveryEvidence = deliveryEvidence || null;
@@ -445,7 +466,7 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
     process.status = status;
     await process.save();
 
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
+    await auditAction(req, AuditAction.REVERT_DELIVERY, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: process, message: `Process delivered. Score: ${score}` });
 });
@@ -464,11 +485,12 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, true);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
     const isOperator = !isMaster && !isManager;
 
     const company = await Company.findById(companyId);
@@ -487,8 +509,7 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
     if (isOperator) {
         const activeConfig = await EvaluationConfig.findOne({ companyId: companyId as any, isActive: true });
         if (!activeConfig || !activeConfig.rules.notificationEmails || activeConfig.rules.notificationEmails.length === 0) {
-            res.json({ success: true, message: 'Processo registrado, mas nenhum e-mail de notificação foi enviado pois não há e-mails configurados nos Parâmetros de Avaliação.' });
-            return;
+            throw new AppError('Não há destinatários configurados nos Parâmetros de Avaliação; nenhum envio foi solicitado.', 400);
         }
         recipients = activeConfig.rules.notificationEmails.map(e => e.trim()).filter(e => e);
     } else {
@@ -506,16 +527,17 @@ export const sendProcessEmail = asyncHandler(async (req: Request, res: Response)
             ${customMessage ? `<div style="background-color: #f0f9ff; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;"><p>${customMessage}</p></div>` : ''}
             <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Código:</strong> ${process.code}</p><p><strong>Título:</strong> ${process.title}</p><p><strong>Setor:</strong> ${process.sector}</p>
-                <p><strong>Data Planejada:</strong> ${process.plannedDate.toLocaleDateString('pt-BR')}</p><p><strong>Data Limite:</strong> ${process.limitDate.toLocaleDateString('pt-BR')}</p><p><strong>Status:</strong> ${statusText}</p>
+                <p><strong>Data Planejada:</strong> ${process.plannedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p><p><strong>Data Limite:</strong> ${process.limitDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p><p><strong>Status:</strong> ${statusText}</p>
             </div>
             <p style="font-size: 12px;">Enviado por: ${sender?.name} (${sender?.email})</p>
         </div>`;
 
     for (const recipient of recipients) {
-        await EmailService.enqueue(companyId as any, { to: recipient, subject: `Processo: ${process.code} - ${process.title}`, html: emailHtml, category: 'process_share', entityId: process._id.toString(), entityType: 'Process', createdBy: userId });
+        const queued = await EmailService.enqueue(companyId, { to: recipient, subject: `Processo: ${process.code} - ${process.title}`, html: emailHtml, category: 'process_share', entityId: process._id.toString(), entityType: 'Process', createdBy: userId });
+        if (!queued) throw new AppError('Não há configuração de e-mail ativa; nenhum envio foi solicitado.', 400);
     }
 
-    res.json({ success: true, message: `Email enqueued for ${recipients.length} recipients` });
+    res.json({ success: true, message: `E-mail colocado na fila para ${recipients.length} destinatários.` });
 });
 
 /**
@@ -530,11 +552,12 @@ export const deleteProcess = asyncHandler(async (req: Request, res: Response): P
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, false);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     const isMaster = globalRoles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = (companyRole as any) === UserRole.MANAGER || globalRoles.includes(UserRole.MANAGER);
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
 
     if (!isMaster) {
         const company = await Company.findById(companyId);
@@ -567,6 +590,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, true);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
@@ -579,6 +603,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
         throw new AppError('Permission denied for this process sector', 403);
     }
 
+    const before = process.toObject();
     // Allow confirmation if deliveryStatus is NOT_DELIVERED or undefined (for legacy processes)
     if (process.deliveryStatus && process.deliveryStatus !== 'NOT_DELIVERED') { throw new AppError('Process already confirmed', 400); }
 
@@ -594,6 +619,7 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
     process.status = status;
     process.deliveryStatus = 'CONFIRMED_PENDING_EMAIL' as any;
     await process.save();
+    await auditAction(req, AuditAction.REVERT_DELIVERY, EntityType.PROCESS, process._id.toString(), before as any, process.toObject() as any);
 
     res.json({ success: true, data: process });
 });
@@ -603,10 +629,11 @@ export const sendDeliveryEmail = asyncHandler(async (req: Request, res: Response
     const { userId, roles: globalRoles, sectors: userSectors, sector: legacySector, companyAccess } = req.user!;
     const companyId = req.companyId!;
 
-    const { Process, Company, User } = await import('../models');
+    const { Process, Company, User, EmailConfig, EmailQueue } = await import('../models');
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, true);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
@@ -619,27 +646,40 @@ export const sendDeliveryEmail = asyncHandler(async (req: Request, res: Response
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Permission denied', 403); }
     }
 
-    if (process.deliveryStatus !== 'CONFIRMED_PENDING_EMAIL') { throw new AppError('Confirm before sending email', 400); }
+    if (!['CONFIRMED_PENDING_EMAIL', 'EMAIL_FAILED'].includes(process.deliveryStatus)) { throw new AppError('Confirme a entrega antes de solicitar o envio; uma solicitação já pode estar em andamento.', 400); }
+    if (!await EmailConfig.exists({ companyId, isActive: true })) throw new AppError('Não há configuração de e-mail ativa. A entrega permanece confirmada, sem envio.', 400);
 
     const admins = await User.find({ 'companyAccess.companyId': companyId, roles: UserRole.MASTER }).select('email name');
     const company = await Company.findById(companyId);
     const sectorConfig = company?.sectors.find(s => s.name === process.sector);
     const managerIds = [...new Set([...(sectorConfig as any)?.managerIds || [], ...(sectorConfig?.managerId ? [sectorConfig.managerId] : [])].map(String))];
-    const managers = await User.find({ _id: { $in: managerIds } }).select('email name');
+    const managers = await User.find({ _id: { $in: managerIds }, 'companyAccess.companyId': companyId }).select('email name');
 
     const recipients = admins.map(a => ({ email: a.email, name: a.name }));
     recipients.push(...managers.map(manager => ({ email: manager.email, name: manager.name })));
 
-    for (const recipient of recipients) {
-        const emailHtml = getProcessDeliveryEmailTemplate({ recipientName: recipient.name, process, statusText: 'Entregue' });
-        await EmailService.enqueue(companyId as any, { to: recipient.email, subject: `Processo Entregue: ${process.code}`, html: emailHtml, category: 'process_delivery', entityId: process._id.toString(), entityType: 'Process', createdBy: userId });
+    const uniqueRecipients = [...new Map(recipients.map(r => [r.email.toLowerCase(), r])).values()];
+    if (!uniqueRecipients.length) throw new AppError('Não há destinatários autorizados configurados para este setor.', 400);
+    const batchId = randomUUID();
+    const reserved = await Process.findOneAndUpdate({ _id: process._id, companyId, deliveryStatus: process.deliveryStatus }, {
+        $set: { deliveryStatus: 'EMAIL_QUEUED', deliveryEmailBatchId: batchId, emailSentAt: null },
+    }, { new: true });
+    if (!reserved) throw new AppError('Já existe uma solicitação de envio para esta entrega.', 409);
+    try {
+        for (const recipient of uniqueRecipients) {
+            const emailHtml = getProcessDeliveryEmailTemplate({ recipientName: recipient.name, process, statusText: 'Entregue' });
+            const queued = await EmailService.enqueue(companyId, { to: recipient.email, subject: `Processo Entregue: ${process.code}`, html: emailHtml, category: 'process_delivery', entityId: process._id.toString(), entityType: 'Process', createdBy: userId, deliveryBatchId: batchId });
+            if (!queued) throw new AppError('Não foi possível enfileirar o e-mail.', 400);
+        }
+        await EmailQueue.updateMany({ companyId, deliveryBatchId: batchId }, { $set: { nextAttemptAt: new Date() } });
+    } catch (error) {
+        await EmailQueue.updateMany({ companyId, deliveryBatchId: batchId }, { $set: { status: 'FAILED', lastError: 'Solicitação de envio não concluída.' } });
+        await Process.updateOne({ _id: process._id, deliveryEmailBatchId: batchId }, { $set: { deliveryStatus: 'CONFIRMED_PENDING_EMAIL', deliveryEmailBatchId: null } });
+        throw error;
     }
+    await auditAction(req, AuditAction.EMAIL_DELIVERY, EntityType.PROCESS, process._id.toString(), null, { deliveryEmailBatchId: batchId, queuedRecipients: uniqueRecipients.length });
+    res.json({ success: true, data: reserved, message: 'E-mail colocado na fila. O status será atualizado após o processamento.' });
 
-    process.deliveryStatus = 'EMAIL_SENT' as any;
-    process.emailSentAt = new Date();
-    await process.save();
-
-    res.json({ success: true, data: process });
 });
 
 export const revertDelivery = asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -653,6 +693,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
 
     const process = await Process.findOne({ _id: id, companyId });
     if (!process) { throw new NotFoundError('Process'); }
+    await assertOpenProcess(req, process, true);
 
     const currentCompanyAccess = (companyAccess || []).find(a => a.companyId === companyId);
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
@@ -678,6 +719,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
                 deliveryEvidence: null,
                 score: null,
                 emailSentAt: null,
+                deliveryEmailBatchId: null,
                 status: getPendingStatus(process.plannedDate, process.limitDate),
                 revertReason: reason,
                 revertedBy: userId,
@@ -689,7 +731,7 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
     const updatedProcess = await Process.findById(id);
     if (!updatedProcess) { throw new AppError('Error following update', 500); }
 
-    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, updatedProcess._id.toString(), before as unknown as Record<string, unknown>, updatedProcess.toObject() as unknown as Record<string, unknown>);
+    await auditAction(req, AuditAction.REVERT_DELIVERY, EntityType.PROCESS, updatedProcess._id.toString(), before as unknown as Record<string, unknown>, updatedProcess.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: updatedProcess });
 });

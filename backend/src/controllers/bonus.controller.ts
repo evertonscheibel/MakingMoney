@@ -1,3 +1,6 @@
+import { getCompanyRole } from '../utils/permissions';
+import { getCompanySectorScope } from '../utils/processAccess';
+import { AppError } from '../middleware/errors';
 import { Request, Response } from 'express';
 import { query } from 'express-validator';
 import { Process, User, EvaluationConfig } from '../models';
@@ -66,9 +69,9 @@ export const calculateBonusPreview = asyncHandler(async (req: Request, res: Resp
 
     const startDate = new Date(from as string);
     const endDate = new Date(to as string);
-    endDate.setHours(23, 59, 59, 999);
+    endDate.setUTCHours(23, 59, 59, 999);
 
-    const isOperator = roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER);
+    const isOperator = getCompanyRole(req.user!, companyId) === UserRole.OPERATOR;
 
     const matchFilter: any = {
         companyId: new Types.ObjectId(companyId.toString()),
@@ -77,6 +80,8 @@ export const calculateBonusPreview = asyncHandler(async (req: Request, res: Resp
         isActive: { $ne: false },
     };
 
+    const scope = await getCompanySectorScope(req);
+    if (scope !== null) matchFilter.sector = { $in: scope };
     if (isOperator && userId) {
         matchFilter.responsibleUserId = new Types.ObjectId(userId.toString());
     }
@@ -145,7 +150,7 @@ export const getBonusReport = asyncHandler(async (req: Request, res: Response): 
     const quarterMonths = getQuarterMonths(currentQuarter, currentYear);
 
     // Operators can only see their own data
-    const isOperator = roles.includes(UserRole.OPERATOR) && !roles.includes(UserRole.MASTER) && !roles.includes(UserRole.MANAGER);
+    const isOperator = getCompanyRole(req.user!, companyId) === UserRole.OPERATOR;
 
     // ── Step 1: Get all delivered processes in the quarter ──
     const matchFilter: any = {
@@ -158,17 +163,18 @@ export const getBonusReport = asyncHandler(async (req: Request, res: Response): 
     // Filter by quarter months using cycles
     const startDate = new Date(`${currentYear}-${String(quarterMonths[0].split('-')[1]).padStart(2, '0')}-01T00:00:00Z`);
     const endMonth = Number(quarterMonths[quarterMonths.length - 1].split('-')[1]);
-    const endDate = new Date(currentYear, endMonth, 0, 23, 59, 59, 999);
+    const endDate = new Date(Date.UTC(currentYear, endMonth, 0, 23, 59, 59, 999));
 
     matchFilter.plannedDate = { $gte: startDate, $lte: endDate };
 
+    const scope = await getCompanySectorScope(req);
+    if (scope !== null) matchFilter.sector = { $in: scope };
     if (filterSector) {
+        if (scope !== null && !scope.includes(String(filterSector))) throw new AppError('Você não tem acesso a este setor.', 403);
         matchFilter.sector = filterSector as string;
     }
 
-    if (isOperator && currentUserId) {
-        matchFilter.responsibleUserId = new Types.ObjectId(currentUserId.toString());
-    }
+
 
     // ── Step 2: Calculate sector averages ──
     const sectorAggregation = await Process.aggregate([
@@ -193,6 +199,8 @@ export const getBonusReport = asyncHandler(async (req: Request, res: Response): 
             qualified: avg >= SECTOR_MIN_SCORE,
         };
     }
+
+    if (isOperator && currentUserId) matchFilter.responsibleUserId = new Types.ObjectId(currentUserId);
 
     // ── Step 3: Calculate per-user averages grouped by sector ──
     const userAggregation = await Process.aggregate([

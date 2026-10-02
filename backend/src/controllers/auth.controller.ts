@@ -36,14 +36,14 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
     const user = await User.findOne({ email }).select('+passwordHash');
 
     if (!user) {
-        throw new UnauthorizedError('Invalid email or password');
+        throw new UnauthorizedError('E-mail ou senha incorretos.');
     }
 
     // Compare password
     const isValid = await user.comparePassword(password);
 
     if (!isValid) {
-        throw new UnauthorizedError('Invalid email or password');
+        throw new UnauthorizedError('E-mail ou senha incorretos.');
     }
 
     // Generate token
@@ -76,6 +76,9 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
                 name: user.name,
                 email: user.email,
                 roles: user.roles,
+                companyAccess: user.companyAccess,
+                sector: user.sector,
+                sectors: user.sectors,
                 activeCompanyId: user.activeCompanyId,
                 activeCompany,
                 allowedCompanyIds: (user.companyAccess || [])
@@ -318,6 +321,9 @@ export const me = asyncHandler(async (req: Request, res: Response): Promise<void
             position: user.position,
             department: user.department,
             sector: user.sector,
+            sectors: user.sectors,
+            companyAccess: user.companyAccess,
+            isEmailVerified: user.isEmailVerified,
             activeCompanyId: user.activeCompanyId,
             activeCompany: activeCompany ? {
                 id: activeCompany._id,

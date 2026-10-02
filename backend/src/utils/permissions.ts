@@ -1,4 +1,11 @@
 import { AuthenticatedUser } from '../types';
+import { UserRole } from '../types';
+
+export function getCompanyRole(user: Pick<AuthenticatedUser, 'roles' | 'companyAccess'>, companyId: string): UserRole {
+    if (user.roles.includes(UserRole.MASTER)) return UserRole.MASTER;
+    const role = user.companyAccess?.find(a => String(a.companyId) === companyId)?.role;
+    return role === UserRole.MASTER || role === UserRole.MANAGER ? role : UserRole.OPERATOR;
+}
 
 /**
  * Resolves the sectors a user is allowed to see/manage WITHIN A SPECIFIC COMPANY.

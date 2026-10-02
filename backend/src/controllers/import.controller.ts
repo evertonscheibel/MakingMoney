@@ -1,3 +1,5 @@
+import { assertSectorAccess, assertResponsibleAccess } from '../utils/processAccess';
+import { getCompanyRole } from '../utils/permissions';
 import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
 import { Process, Cycle, EvaluationConfig, getDefaultRules } from '../models';
@@ -24,12 +26,17 @@ export const importProcesses = asyncHandler(async (req: Request, res: Response):
     const companyRole = currentCompanyAccess?.role || UserRole.OPERATOR;
     
     const isMaster = roles.includes(UserRole.MASTER) || (companyRole as any) === UserRole.MASTER;
-    const isManager = roles.includes(UserRole.MANAGER) || (companyRole as any) === UserRole.MANAGER;
+    const isManager = getCompanyRole(req.user!, companyId) === UserRole.MANAGER;
 
     if (!isMaster && !isManager) {
         throw new AppError('Apenas administradores e gestores podem importar processos.', 403);
     }
 
+    await assertSectorAccess(req, sector, true);
+    await assertResponsibleAccess(req, responsibleUserId, sector);
+    if (!Number.isFinite(Date.parse(plannedDate)) || !Number.isFinite(Date.parse(limitDate)) || new Date(limitDate) < new Date(plannedDate)) {
+        throw new AppError('Informe datas válidas; o limite não pode ser anterior à data planejada.', 400);
+    }
     // Find current open cycle
     const cycle = await Cycle.findOne({
         companyId,
@@ -112,6 +119,7 @@ export const importProcesses = asyncHandler(async (req: Request, res: Response):
 
     // Check for duplicate codes in this cycle
     const codes = processesToCreate.map(p => p.code);
+    if (new Set(codes).size !== codes.length) throw new AppError('O arquivo contém códigos duplicados.', 409);
     const existing = await Process.find({
         companyId,
         cycleId: cycle._id,
@@ -138,7 +146,7 @@ export const importProcesses = asyncHandler(async (req: Request, res: Response):
 
     res.status(201).json({
         success: true,
-        message: `Successfully imported ${result.length} processes.`,
+        message: `${result.length} processos importados com sucesso.`,
         data: result
     });
 });

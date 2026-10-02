@@ -17,7 +17,7 @@ export const getProcessDeliveryEmailTemplate = ({ recipientName, process, status
                 <p><strong>Código:</strong> ${process.code}</p>
                 <p><strong>Título:</strong> ${process.title}</p>
                 <p><strong>Setor:</strong> ${process.sector}</p>
-                <p><strong>Data de Entrega:</strong> ${new Date(process.deliveryDate).toLocaleDateString('pt-BR')}</p>
+                <p><strong>Data de Entrega:</strong> ${new Date(process.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p>
                 <p><strong>Pontuação:</strong> <span style="color: ${process.score! >= 75 ? '#16a34a' : process.score! >= 50 ? '#eab308' : '#dc2626'}; font-weight: bold;">${process.score}</span></p>
                 <p><strong>Status:</strong> ${statusText}</p>
                 ${process.deliveryEvidence ? `<p><strong>Evidência:</strong> ${process.deliveryEvidence}</p>` : ''}
@@ -29,4 +29,3 @@ export const getProcessDeliveryEmailTemplate = ({ recipientName, process, status
         </div>
     `;
 };
-

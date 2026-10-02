@@ -1,3 +1,5 @@
+import { useAuth } from '../contexts';
+import { UserRole } from '../types';
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { processesApi } from '../api';
@@ -7,6 +9,7 @@ import { Process, ProcessStatus } from '../types';
 interface ProcessScheduleCalendarProps {
     processes: Process[];
     period: string;
+    editable?: boolean;
 }
 
 const STATUS_STYLES: Record<ProcessStatus, string> = {
@@ -34,13 +37,16 @@ function dateKey(value: string | null): string | null {
     return value.includes('T') ? value.split('T')[0] : value.slice(0, 10);
 }
 
-export default function ProcessScheduleCalendar({ processes, period }: ProcessScheduleCalendarProps) {
+export default function ProcessScheduleCalendar({ processes, period, editable: cycleEditable = true }: ProcessScheduleCalendarProps) {
+    const {user} = useAuth();
+    const editable = cycleEditable && !user?.roles.includes(UserRole.OPERATOR);
+    const [errorMessage, setErrorMessage] = useState('');
     const queryClient = useQueryClient();
     const [dragged, setDragged] = useState<{ processId: string; field: 'plannedDate' | 'limitDate' } | null>(null);
     const reschedule = useMutation({
         mutationFn: ({ processId, field, date }: { processId: string; field: 'plannedDate' | 'limitDate'; date: string }) => processesApi.update(processId, { [field]: date }),
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['extract'] }); queryClient.invalidateQueries({ queryKey: ['summary'] }); },
-        onError: (error: any) => alert(error?.message || 'Não foi possível reagendar o processo.'),
+        onSuccess: () => { setErrorMessage(''); queryClient.invalidateQueries({ queryKey: ['extract'] }); queryClient.invalidateQueries({ queryKey: ['summary'] }); queryClient.invalidateQueries({ queryKey: ['processes'] }); queryClient.invalidateQueries({ queryKey: ['myMetrics'] }); queryClient.invalidateQueries({ queryKey: ['teamMetrics'] }); queryClient.invalidateQueries({ queryKey: ['sectorRanking'] }); },
+        onError: (error: any) => setErrorMessage(error?.message || 'Não foi possível reagendar o processo.'),
     });
     const [year, month] = period.split('-').map(Number);
     const validPeriod = Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12;
@@ -65,6 +71,7 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
 
     return (
         <section className="card print:shadow-none print:border" aria-label="Cronograma de processos">
+            {errorMessage && <p role="alert" className="text-red-600 mb-3">{errorMessage}</p>}
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between mb-5">
                 <div className="flex items-start gap-3">
                     <div className="rounded-lg bg-primary-50 dark:bg-primary-900/30 p-2.5">
@@ -136,7 +143,7 @@ export default function ProcessScheduleCalendar({ processes, period }: ProcessSc
                                     return (
                                         <div key={day} onDragOver={(e)=>e.preventDefault()} onDrop={() => { if (dragged) reschedule.mutate({ processId: dragged.processId, field: dragged.field, date: key }); setDragged(null); }} className={`w-12 min-h-16 flex-shrink-0 border-r border-b flex flex-wrap content-center justify-center gap-0.5 p-0.5 group-hover:bg-primary-50/40 dark:group-hover:bg-primary-900/10 ${weekend ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900'} ${dragged ? 'hover:ring-2 hover:ring-primary-500' : ''}`}>
                                             {markers.map(marker => (
-                                                <span draggable={marker.code !== 'E'} onDragStart={() => marker.code !== 'E' && setDragged({processId: process._id, field: marker.code === 'P' ? 'plannedDate' : 'limitDate'})} onDragEnd={()=>setDragged(null)} key={marker.code} title={`${marker.label}: ${process.title}${marker.code !== 'E' ? ' — arraste para reagendar' : ''}`} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${marker.code !== 'E' ? 'cursor-grab' : 'cursor-help'} ${marker.className}`}>
+                                                <span draggable={editable && marker.code !== 'E'} onDragStart={() => editable && marker.code !== 'E' && setDragged({processId: process._id, field: marker.code === 'P' ? 'plannedDate' : 'limitDate'})} onDragEnd={()=>setDragged(null)} key={marker.code} title={`${marker.label}: ${process.title}${editable && marker.code !== 'E' ? ' — arraste para reagendar' : ''}`} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${editable && marker.code !== 'E' ? 'cursor-grab' : 'cursor-help'} ${marker.className}`}>
                                                     {marker.code}
                                                 </span>
                                             ))}
