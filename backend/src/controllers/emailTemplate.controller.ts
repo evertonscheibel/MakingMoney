@@ -4,7 +4,7 @@ import { EmailTemplate } from '../models/EmailTemplate';
 
 const categories = [
     ['process_delivery', 'Processo entregue'], ['process_share', 'Compartilhamento de processo'],
-    ['schedule_changed', 'Cronograma alterado'], ['cycle_open', 'Ciclo aberto'],
+    ['cycle_open', 'Ciclo aberto'],
     ['cycle_close', 'Ciclo encerrado'], ['cycle_review', 'Revisão de datas do ciclo'],
     ['alert_reminder', 'Processos atrasados'], ['alert_admin', 'Alerta administrativo'],
 ];

@@ -19,6 +19,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import SectorList from './pages/SectorList';
+import DateChanges from './pages/DateChanges';
 import BonusReport from './pages/BonusReport';
 import Help from './pages/Help';
 import { hasMenuAccess } from './utils/menuPermissions';
@@ -103,6 +104,7 @@ function App() {
                                         <Route path="/email-logs" element={<PermissionRoute id="email-logs"><EmailLogs /></PermissionRoute>} />
                                         <Route path="/process-curve" element={<PermissionRoute id="process-curve"><ProcessCurveReport /></PermissionRoute>} />
                                         <Route path="/bonus-report" element={<PermissionRoute id="bonus-report"><BonusReport /></PermissionRoute>} />
+                                        <Route path="/date-changes" element={<AdminRoute><DateChanges /></AdminRoute>} />
                                         <Route path="/system-logs" element={<PermissionRoute id="system-logs"><AuditLogs /></PermissionRoute>} />
                                         <Route path="/help" element={<Help />} />
 

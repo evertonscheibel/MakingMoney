@@ -7,6 +7,8 @@ import {
     listEmailLogsValidation,
     getProcessLogs,
     getProcessLogsValidation,
+    listDateChanges,
+    listDateChangesValidation,
 } from '../controllers/log.controller';
 import { UserRole } from '../types';
 
@@ -20,6 +22,9 @@ router.get('/audit', validate(listAuditLogsValidation), listAuditLogs);
 
 // List email logs
 router.get('/email', validate(listEmailLogsValidation), listEmailLogs);
+
+// Process planned/limit date changes by month
+router.get('/date-changes', validate(listDateChangesValidation), listDateChanges);
 
 // Get combined logs for a specific process
 router.get('/process/:id', validate(getProcessLogsValidation), getProcessLogs);

@@ -12,6 +12,7 @@ import {
     Users,
     MailOpen,
     History,
+    CalendarClock,
     Award,
     HelpCircle,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 { id: 'process-curve', name: 'Curva de Processo', href: '/process-curve', icon: BarChart3 },
                 { id: 'bonus-report', name: 'Bonificações', href: '/bonus-report', icon: Award },
                 { id: 'cycle-history', name: 'Histórico de Ciclos', href: '/cycles/history', icon: History },
+                { id: 'date-changes', name: 'Alterações de Datas', href: '/date-changes', icon: CalendarClock },
             ]
         },
         {
@@ -69,7 +71,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const filterItems = (items: any[]) => {
         return items.filter((item) => {
             if (item.alwaysVisible) return true;
-            if (['system-logs', 'email-logs'].includes(item.id) && !isMaster) return false;
+            if (['system-logs', 'email-logs', 'date-changes'].includes(item.id) && !isMaster) return false;
             if (isMaster) return true;
             return hasMenuAccess(user?.allowedMenus, item.id);
         });

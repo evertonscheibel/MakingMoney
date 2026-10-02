@@ -330,10 +330,6 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     if (updates.sector && updates.sector !== process.sector) throw new AppError('Crie o processo no ciclo do setor de destino; o setor não pode ser alterado nesta edição.', 400);
     await assertResponsibleAccess(req, updates.responsibleUserId, updates.sector || process.sector);
     const before = process.toObject();
-    const scheduleChanged = Boolean(
-        (updates.plannedDate && new Date(updates.plannedDate).getTime() !== process.plannedDate.getTime()) ||
-        (updates.limitDate && new Date(updates.limitDate).getTime() !== process.limitDate.getTime())
-    );
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
     if (updates.sector) process.sector = updates.sector;
@@ -346,23 +342,8 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     if (!process.deliveryDate) { process.status = getPendingStatus(process.plannedDate, process.limitDate); }
 
     await process.save();
-    await auditAction(req, AuditAction.REVERT_DELIVERY, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
-
-    if (scheduleChanged) {
-        const company = await Company.findById(companyId);
-        const sectorConfig = company?.sectors.find(s => s.name === process.sector) as any;
-        const managerIds = [...new Set([...(sectorConfig?.managerIds || []), ...(sectorConfig?.managerId ? [sectorConfig.managerId] : [])].map(String))];
-        const managers = await User.find({ _id: { $in: managerIds }, 'companyAccess.companyId': companyId }).select('email name');
-        for (const manager of managers) {
-            await EmailService.enqueue(companyId as any, {
-                to: manager.email,
-                subject: `Cronograma alterado: ${process.code} - ${process.title}`,
-                html: `<p>Olá ${manager.name},</p><p>O processo <strong>${process.code} - ${process.title}</strong> foi reagendado.</p><p>Data planejada: <strong>${process.plannedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong><br>Data limite: <strong>${process.limitDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</strong></p>`,
-                category: 'schedule_changed', entityId: process._id.toString(), entityType: 'Process', createdBy: userId,
-                templateData: { managerName: manager.name, processCode: process.code, processTitle: process.title, plannedDate: process.plannedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }), limitDate: process.limitDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) }
-            });
-        }
-    }
+    // Date changes are not e-mailed; masters review them in "Alterações de Datas" (GET /api/logs/date-changes), built from this audit entry.
+    await auditAction(req, AuditAction.UPDATE, EntityType.PROCESS, process._id.toString(), before as unknown as Record<string, unknown>, process.toObject() as unknown as Record<string, unknown>);
 
     res.json({ success: true, data: process });
 });

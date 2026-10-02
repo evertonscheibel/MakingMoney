@@ -385,7 +385,24 @@ export const settingsApi = {
 
 // ==================== LOGS ====================
 
+export interface DateChange {
+    id: string;
+    changedAt: string;
+    changedBy: { name: string; email: string } | null;
+    processId: string;
+    code: string;
+    title: string;
+    sector: string;
+    cycleMonth: string | null;
+    plannedDate: { from: string | null; to: string | null };
+    limitDate: { from: string | null; to: string | null };
+}
+
 export const logsApi = {
+    listDateChanges: async (params?: { month?: string; sector?: string }) => {
+        const response = await api.get<{ success: boolean; data: { month: string | null; months: { month: string; total: number }[]; sectors: string[]; changes: DateChange[] } }>('/logs/date-changes', { params });
+        return response.data.data;
+    },
     listAuditLogs: async (params?: {
         entityType?: string;
         entityId?: string;
