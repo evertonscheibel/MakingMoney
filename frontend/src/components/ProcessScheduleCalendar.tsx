@@ -3,7 +3,7 @@ import { UserRole } from '../types';
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { processesApi } from '../api';
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Info } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Info, X } from 'lucide-react';
 import { Process, ProcessStatus } from '../types';
 
 interface ProcessScheduleCalendarProps {
@@ -27,8 +27,8 @@ const STATUS_LABELS: Record<ProcessStatus, string> = {
 };
 
 const DATE_MARKERS = {
-    planned: { label: 'Planejado', className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800' },
-    limit: { label: 'Limite', className: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-800' },
+    planned: { label: 'Planejado', className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700' },
+    limit: { label: 'Limite', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800' },
     delivered: { label: 'Entregue', className: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800' },
 };
 
@@ -40,6 +40,11 @@ function dateKey(value: string | null): string | null {
 export default function ProcessScheduleCalendar({ processes, period, editable: cycleEditable = true }: ProcessScheduleCalendarProps) {
     const {user} = useAuth();
     const editable = cycleEditable && !user?.roles.includes(UserRole.OPERATOR);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const selected = processes.find(process => process._id === selectedId);
+    const today = new Date();
+    const isToday = (day: number) => year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate();
+    const formatDate = (value: string | null) => value ? new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não informada';
     const [errorMessage, setErrorMessage] = useState('');
     const queryClient = useQueryClient();
     const [dragged, setDragged] = useState<{ processId: string; field: 'plannedDate' | 'limitDate' } | null>(null);
@@ -94,6 +99,22 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
                 </div>
             </div>
 
+            {selected && (
+                <aside className="mb-5 rounded-xl border border-primary-200 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-900/10 p-4" aria-label="Detalhes do processo selecionado">
+                    <div className="flex items-start justify-between gap-3">
+                        <div><p className="section-label">{selected.code} · {selected.sector}</p><h3 className="mt-1 font-semibold text-gray-900 dark:text-white">{selected.title}</h3></div>
+                        <button type="button" className="header-action" aria-label="Fechar detalhes do processo" onClick={() => setSelectedId(null)}><X className="w-4 h-4" /></button>
+                    </div>
+                    <dl className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-4 text-sm">
+                        <div><dt className="section-label">Responsável</dt><dd className="mt-1">{typeof selected.responsibleUserId === 'object' && selected.responsibleUserId ? selected.responsibleUserId.name : selected.owner || 'Não informado'}</dd></div>
+                        <div><dt className="section-label">Planejado</dt><dd className="mt-1">{formatDate(selected.plannedDate)}</dd></div>
+                        <div><dt className="section-label">Limite</dt><dd className="mt-1">{formatDate(selected.limitDate)}</dd></div>
+                        <div><dt className="section-label">Entrega</dt><dd className="mt-1">{formatDate(selected.deliveryDate)}</dd></div>
+                        <div><dt className="section-label">Status</dt><dd className="mt-1">{STATUS_LABELS[selected.status]}</dd></div>
+                    </dl>
+                </aside>
+            )}
+
             {sortedProcesses.length === 0 ? (
                 <div className="rounded-lg border border-dashed py-14 text-center">
                     <CalendarDays className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -104,7 +125,7 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
                 <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg max-h-[620px] scrollbar-thin">
                     <div className="min-w-max">
                         <div className="flex sticky top-0 z-30 shadow-sm">
-                            <div className="w-72 flex-shrink-0 sticky left-0 z-40 px-3 py-2.5 bg-gray-100 dark:bg-gray-800 border-r border-b font-semibold text-xs uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                            <div className="w-40 sm:w-64 flex-shrink-0 sticky left-0 z-40 px-3 py-2.5 bg-gray-100 dark:bg-gray-800 border-r border-b font-semibold text-xs uppercase tracking-wider text-gray-600 dark:text-gray-300">
                                 Processo
                             </div>
                             {days.map(day => {
@@ -112,10 +133,10 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
                                 const weekend = date.getDay() === 0 || date.getDay() === 6;
                                 const count = concentration[day - 1];
                                 return (
-                                    <div key={day} className={`w-12 flex-shrink-0 py-2 text-center border-r border-b ${weekend ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                    <div key={day} aria-current={isToday(day) ? "date" : undefined} className={`w-12 flex-shrink-0 py-2 text-center border-r border-b ${isToday(day) ? 'bg-primary-100 dark:bg-primary-900 ring-1 ring-inset ring-primary-500' : weekend ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'}`}>
                                         <span className="block text-[10px] uppercase text-gray-400">{date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}</span>
                                         <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{day}</span>
-                                        {count > 0 && <span title={`${count} entregas ou limites`} className={`mx-auto mt-1 block w-6 rounded-full text-[9px] font-bold ${count >= maxConcentration * .7 ? 'bg-red-100 text-red-700' : count >= maxConcentration * .4 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{count}</span>}
+                                        {count > 0 && <span title={`${count} entregas ou limites`} className={`mx-auto mt-1 block w-6 rounded-full text-[9px] font-bold ${count >= maxConcentration * .7 ? 'bg-red-100 text-red-700' : count >= maxConcentration * .4 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>{count}</span>}
                                     </div>
                                 );
                             })}
@@ -123,13 +144,13 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
 
                         {sortedProcesses.map(process => (
                             <div key={process._id} className="flex group">
-                                <div className="w-72 min-h-16 flex-shrink-0 sticky left-0 z-20 bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 border-r border-b px-3 py-2 shadow-[4px_0_8px_-6px_rgba(0,0,0,0.35)]">
+                                <div className="w-40 sm:w-64 min-h-16 flex-shrink-0 sticky left-0 z-20 bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 border-r border-b px-3 py-2 shadow-[4px_0_8px_-6px_rgba(0,0,0,0.35)]">
                                     <div className="flex items-center gap-2 min-w-0">
                                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_STYLES[process.status]}`} title={STATUS_LABELS[process.status]} />
                                         <span className="font-mono text-[11px] font-semibold text-gray-500">{process.code}</span>
                                         <span className="text-[10px] text-gray-400 truncate">{process.sector}</span>
                                     </div>
-                                    <p className="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-2 mt-1" title={process.title}>{process.title}</p>
+                                    <button type="button" onClick={() => setSelectedId(process._id)} aria-pressed={selectedId === process._id} className="text-left text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-2 mt-1 hover:text-primary-700 focus-visible:ring-2 focus-visible:ring-primary-500" title={process.title}>{process.title}</button>
                                 </div>
                                 {days.map(day => {
                                     const date = new Date(year, month - 1, day);
@@ -141,11 +162,11 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
                                         dateKey(process.deliveryDate) === key && { code: 'E', ...DATE_MARKERS.delivered },
                                     ].filter(Boolean) as Array<{ code: string; label: string; className: string }>;
                                     return (
-                                        <div key={day} onDragOver={(e)=>e.preventDefault()} onDrop={() => { if (dragged) reschedule.mutate({ processId: dragged.processId, field: dragged.field, date: key }); setDragged(null); }} className={`w-12 min-h-16 flex-shrink-0 border-r border-b flex flex-wrap content-center justify-center gap-0.5 p-0.5 group-hover:bg-primary-50/40 dark:group-hover:bg-primary-900/10 ${weekend ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900'} ${dragged ? 'hover:ring-2 hover:ring-primary-500' : ''}`}>
+                                        <div key={day} onDragOver={(e)=>e.preventDefault()} onDrop={() => { if (dragged) reschedule.mutate({ processId: dragged.processId, field: dragged.field, date: key }); setDragged(null); }} className={`w-12 min-h-16 flex-shrink-0 border-r border-b flex flex-wrap content-center justify-center gap-0.5 p-0.5 group-hover:bg-primary-50/40 dark:group-hover:bg-primary-900/10 ${isToday(day) ? 'bg-primary-50 dark:bg-primary-900/20' : weekend ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900'} ${dragged ? 'hover:ring-2 hover:ring-primary-500' : ''}`}>
                                             {markers.map(marker => (
-                                                <span draggable={editable && marker.code !== 'E'} onDragStart={() => editable && marker.code !== 'E' && setDragged({processId: process._id, field: marker.code === 'P' ? 'plannedDate' : 'limitDate'})} onDragEnd={()=>setDragged(null)} key={marker.code} title={`${marker.label}: ${process.title}${editable && marker.code !== 'E' ? ' — arraste para reagendar' : ''}`} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] font-bold ${editable && marker.code !== 'E' ? 'cursor-grab' : 'cursor-help'} ${marker.className}`}>
+                                                <button type="button" onClick={() => setSelectedId(process._id)} aria-label={`${marker.label}: ${process.title}`} draggable={editable && marker.code !== 'E'} onDragStart={() => editable && marker.code !== 'E' && setDragged({processId: process._id, field: marker.code === 'P' ? 'plannedDate' : 'limitDate'})} onDragEnd={()=>setDragged(null)} key={marker.code} title={`${marker.label}: ${process.title}${editable && marker.code !== 'E' ? ' — arraste para reagendar' : ''}`} className={`w-8 h-8 rounded-lg border flex items-center justify-center text-xs font-bold ${editable && marker.code !== 'E' ? 'cursor-grab' : 'cursor-help'} ${marker.className}`}>
                                                     {marker.code}
-                                                </span>
+                                                </button>
                                             ))}
                                         </div>
                                     );
@@ -157,7 +178,7 @@ export default function ProcessScheduleCalendar({ processes, period, editable: c
             )}
 
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Arraste P ou L para outra data. A alteração vale em todo o sistema e notifica os gestores.</span>
+                <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> {editable ? 'Selecione um evento para ver detalhes. Arraste P ou L para reagendar e notificar os gestores.' : 'Selecione um evento para ver os detalhes do processo.'}</span>
                 <span className="flex flex-wrap gap-3">
                     <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-success-500" /> No prazo</span>
                     <span className="flex items-center gap-1"><Clock3 className="w-3.5 h-3.5 text-warning-500" /> Atrasado</span>

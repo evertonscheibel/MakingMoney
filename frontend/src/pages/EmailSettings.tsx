@@ -6,10 +6,15 @@ import { SMTPSecurityMode } from '../types';
 
 export default function EmailSettings() {
     const { user } = useAuth();
+    const [activeTab, setActiveTab] = useState<'messages' | 'smtp'>('messages');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [configError, setConfigError] = useState('');
+    const [templatesError, setTemplatesError] = useState('');
+    const [templateSaving, setTemplateSaving] = useState(false);
+    const [templateResult, setTemplateResult] = useState<{ success: boolean; message: string } | null>(null);
     const [templates, setTemplates] = useState<any[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
@@ -31,34 +36,51 @@ export default function EmailSettings() {
     }, [user?.activeCompanyId]);
 
     const loadConfig = async () => {
-        try {
-            setLoading(true);
-            const [config, loadedTemplates] = await Promise.all([settingsApi.email.get(), settingsApi.emailTemplates.list()]);
-            setTemplates(loadedTemplates);
-            if (config) {
-                setForm({
-                    host: config.host || '',
-                    port: config.port || 587,
-                    securityMode: config.securityMode || SMTPSecurityMode.STARTTLS,
-                    user: config.auth?.user || '',
-                    pass: '********', // Password mask
-                    fromName: config.fromName || 'Metodo Chronos',
-                    fromEmail: config.fromEmail || '',
-                    recipients: config.recipients || [],
-                });
-            }
-        } catch (error) {
-            console.error('Failed to load config:', error);
-        } finally {
-            setLoading(false);
+        setLoading(true);
+        setConfigError('');
+        setTemplatesError('');
+        setSelectedTemplate(null);
+        setTemplateResult(null);
+        const [configResult, templatesResult] = await Promise.allSettled([
+            settingsApi.email.get(), settingsApi.emailTemplates.list(),
+        ]);
+        if (configResult.status === 'fulfilled') {
+            const config = configResult.value;
+            setForm({
+                host: config?.host || '', port: config?.port || 587,
+                securityMode: config?.securityMode || SMTPSecurityMode.STARTTLS,
+                user: config?.auth?.user || '', pass: config?.auth?.user ? '********' : '',
+                fromName: config?.fromName || 'Metodo Chronos', fromEmail: config?.fromEmail || '',
+                recipients: Array.isArray(config?.recipients) ? config.recipients : [],
+            });
+        } else {
+            setConfigError(configResult.reason?.message || 'Não foi possível carregar a configuração SMTP.');
         }
+        if (templatesResult.status === 'fulfilled' && Array.isArray(templatesResult.value)) {
+            setTemplates(templatesResult.value);
+            setSelectedTemplate(templatesResult.value[0] ? {...templatesResult.value[0]} : null);
+        } else {
+            setTemplates([]);
+            setTemplatesError(templatesResult.status === 'rejected'
+                ? templatesResult.reason?.message || 'Não foi possível carregar os modelos.'
+                : 'O servidor retornou uma lista de modelos inválida. Tente novamente.');
+        }
+        setLoading(false);
     };
 
     const saveTemplate = async () => {
-        if (!selectedTemplate) return;
-        await settingsApi.emailTemplates.update(selectedTemplate.category, selectedTemplate);
-        setTemplates(items => items.map(item => item.category === selectedTemplate.category ? selectedTemplate : item));
-        alert('Modelo de e-mail salvo. Os próximos envios desta categoria usarão este conteúdo.');
+        if (!selectedTemplate || templateSaving) return;
+        setTemplateSaving(true);
+        setTemplateResult(null);
+        try {
+            const saved = await settingsApi.emailTemplates.update(selectedTemplate.category, selectedTemplate);
+            setTemplates(items => items.map(item => item.category === selectedTemplate.category ? saved || selectedTemplate : item));
+            setTemplateResult({success: true, message: 'Modelo salvo. Os próximos envios desta categoria usarão este conteúdo.'});
+        } catch (error: any) {
+            setTemplateResult({success: false, message: error?.message || 'Não foi possível salvar o modelo.'});
+        } finally {
+            setTemplateSaving(false);
+        }
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -85,9 +107,9 @@ export default function EmailSettings() {
         setTestResult(null);
         try {
             await settingsApi.email.update(form);
-            alert('Configurações salvas com sucesso!');
-        } catch (error) {
-            alert('Erro ao salvar configurações.');
+            setTestResult({success: true, message: 'Configurações salvas com sucesso!'});
+        } catch (error: any) {
+            setTestResult({success: false, message: error?.message || 'Erro ao salvar configurações.'});
         } finally {
             setSaving(false);
         }
@@ -119,12 +141,19 @@ export default function EmailSettings() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Configuração de Email (SMTP)</h1>
-                <p className="text-gray-500">Configure o servidor de email para envio de notificações e alertas.</p>
+                <h1 className="text-2xl font-bold text-gray-900">Configurações de e-mail</h1>
+                <p className="text-gray-500">Edite as mensagens enviadas pelo sistema e configure a conexão de envio.</p>
             </div>
 
+            <div role="tablist" aria-label="Configurações de e-mail" className="inline-flex flex-wrap gap-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
+                <button type="button" role="tab" id="messages-tab" aria-selected={activeTab === 'messages'} aria-controls="messages-panel" onClick={() => setActiveTab('messages')} className={`px-4 py-2.5 text-sm font-medium rounded-lg ${activeTab === 'messages' ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-300 shadow-sm' : 'text-gray-600 dark:text-gray-300'}`}>Mensagens enviadas</button>
+                <button type="button" role="tab" id="smtp-tab" aria-selected={activeTab === 'smtp'} aria-controls="smtp-panel" onClick={() => setActiveTab('smtp')} className={`px-4 py-2.5 text-sm font-medium rounded-lg ${activeTab === 'smtp' ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-300 shadow-sm' : 'text-gray-600 dark:text-gray-300'}`}>Servidor SMTP</button>
+            </div>
+            <section role="tabpanel" id="smtp-panel" aria-labelledby="smtp-tab" hidden={activeTab !== 'smtp'} className="space-y-4">
+            {configError && <div role="alert" className="card border-danger-200 space-y-3"><p className="text-danger-600">{configError}</p><button type="button" onClick={loadConfig} className="btn-secondary">Tentar novamente</button></div>}
             <div className="card">
                 <form onSubmit={handleSave} className="space-y-6">
+                    <fieldset disabled={!!configError || saving || testing} className="space-y-6 min-w-0">
                     {/* Server Settings */}
                     <div className="space-y-4">
                         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -132,10 +161,10 @@ export default function EmailSettings() {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Host SMTP</label>
+                                <label htmlFor="email-host" className="block text-sm font-medium text-gray-700 mb-1">Host SMTP</label>
                                 <input
                                     type="text"
-                                    name="host"
+                                    id="email-host" name="host"
                                     value={form.host}
                                     onChange={handleChange}
                                     placeholder="smtp.exemplo.com"
@@ -144,10 +173,10 @@ export default function EmailSettings() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Porta</label>
+                                <label htmlFor="email-port" className="block text-sm font-medium text-gray-700 mb-1">Porta</label>
                                 <input
                                     type="number"
-                                    name="port"
+                                    id="email-port" name="port"
                                     value={form.port}
                                     onChange={handleChange}
                                     placeholder="587"
@@ -180,12 +209,12 @@ export default function EmailSettings() {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+                                <label htmlFor="email-user" className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
                                 <div className="relative">
                                     <User className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                                     <input
                                         type="text"
-                                        name="user"
+                                        id="email-user" name="user"
                                         value={form.user}
                                         onChange={handleChange}
                                         className="input w-full pl-9"
@@ -194,12 +223,12 @@ export default function EmailSettings() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                                <label htmlFor="email-pass" className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
                                 <div className="relative">
                                     <Key className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                                     <input
                                         type="password"
-                                        name="pass"
+                                        id="email-pass" name="pass"
                                         value={form.pass}
                                         onChange={handleChange}
                                         className="input w-full pl-9"
@@ -220,10 +249,10 @@ export default function EmailSettings() {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Remetente</label>
+                                <label htmlFor="email-fromName" className="block text-sm font-medium text-gray-700 mb-1">Nome do Remetente</label>
                                 <input
                                     type="text"
-                                    name="fromName"
+                                    id="email-fromName" name="fromName"
                                     value={form.fromName}
                                     onChange={handleChange}
                                     className="input w-full"
@@ -231,10 +260,10 @@ export default function EmailSettings() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email do Remetente</label>
+                                <label htmlFor="email-fromEmail" className="block text-sm font-medium text-gray-700 mb-1">Email do Remetente</label>
                                 <input
                                     type="email"
-                                    name="fromEmail"
+                                    id="email-fromEmail" name="fromEmail"
                                     value={form.fromEmail}
                                     onChange={handleChange}
                                     className="input w-full"
@@ -336,7 +365,7 @@ export default function EmailSettings() {
                     }
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4">
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-4">
                         <button
                             type="button"
                             onClick={handleTest}
@@ -354,21 +383,27 @@ export default function EmailSettings() {
                             Salvar Configuração
                         </button>
                     </div>
+                    </fieldset>
                 </form >
             </div >
 
+            </section>
+
+            <section role="tabpanel" id="messages-panel" aria-labelledby="messages-tab" hidden={activeTab !== 'messages'}>
             <div className="card space-y-4">
-                <div><h2 className="text-lg font-semibold text-gray-900">Modelos por categoria</h2><p className="text-sm text-gray-500">Personalize assunto e corpo. Variáveis usam o formato <code>{'{{nomeDaVariavel}}'}</code>.</p></div>
+                <div><h2 className="text-lg font-semibold text-gray-900">Edição das mensagens</h2><p className="text-sm text-gray-500">Personalize assunto e corpo. Variáveis usam o formato <code>{'{{nomeDaVariavel}}'}</code>.</p></div>
+                {templateResult && <p role={templateResult.success ? 'status' : 'alert'} className={templateResult.success ? 'text-success-700' : 'text-danger-600'}>{templateResult.message}</p>}
                 <div className="grid md:grid-cols-[240px_1fr] gap-4">
-                    <div className="space-y-2">{templates.map(template => <button type="button" key={template.category} onClick={() => setSelectedTemplate({...template})} className={`w-full text-left rounded-lg border px-3 py-2 text-sm ${selectedTemplate?.category === template.category ? 'border-primary-500 bg-primary-50' : 'border-gray-200'}`}>{template.label}</button>)}</div>
+                    <div className="space-y-2">{templatesError && <div role="alert" className="space-y-3"><p className="text-sm text-danger-600">{templatesError}</p><button type="button" className="btn-secondary" onClick={loadConfig}>Recarregar modelos</button></div>}{!templatesError && !templates.length && <p className="text-sm text-gray-500">Nenhum modelo disponível.</p>}{templates.map(template => <button type="button" key={template.category} disabled={templateSaving} onClick={() => {setSelectedTemplate({...template}); setTemplateResult(null);}} className={`w-full text-left rounded-lg border px-3 py-2 text-sm ${selectedTemplate?.category === template.category ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-700'}`}>{template.label}</button>)}</div>
                     {selectedTemplate ? <div className="space-y-3">
-                        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedTemplate.isActive} onChange={e=>setSelectedTemplate({...selectedTemplate,isActive:e.target.checked})}/> Usar modelo personalizado</label>
-                        <div><label className="label">Assunto</label><input className="input" value={selectedTemplate.subject} onChange={e=>setSelectedTemplate({...selectedTemplate,subject:e.target.value})}/></div>
-                        <div><label className="label">Corpo do e-mail (HTML)</label><textarea className="input min-h-64 font-mono" value={selectedTemplate.htmlBody} onChange={e=>setSelectedTemplate({...selectedTemplate,htmlBody:e.target.value})}/></div>
-                        <div className="flex justify-end"><button type="button" className="btn btn-primary" onClick={saveTemplate}><Save className="w-4 h-4"/>Salvar modelo</button></div>
+                        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!selectedTemplate.isActive} onChange={e=>setSelectedTemplate({...selectedTemplate,isActive:e.target.checked})}/> Usar modelo personalizado</label>
+                        <div><label className="label">Assunto</label><input className="input" aria-label="Assunto do modelo" value={selectedTemplate.subject || ''} onChange={e=>setSelectedTemplate({...selectedTemplate,subject:e.target.value})}/></div>
+                        <div><label className="label">Corpo do e-mail (HTML)</label><textarea className="input min-h-64 font-mono" aria-label="Corpo do modelo" value={selectedTemplate.htmlBody || ''} onChange={e=>setSelectedTemplate({...selectedTemplate,htmlBody:e.target.value})}/></div>
+                        <div className="flex justify-end"><button type="button" disabled={templateSaving} className="btn btn-primary" onClick={saveTemplate}><Save className="w-4 h-4"/>{templateSaving ? 'Salvando...' : 'Salvar modelo'}</button></div>
                     </div> : <p className="text-sm text-gray-500">Selecione uma categoria para editar.</p>}
                 </div>
             </div>
+            </section>
         </div >
     );
 }

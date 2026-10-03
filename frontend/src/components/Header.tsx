@@ -1,63 +1,45 @@
+import { useLocation } from 'react-router-dom';
 import { useAuth, useTheme } from '../contexts';
-import { Menu, LogOut, Bell, Sun, Moon } from 'lucide-react';
-import chronosLogo from '../assets/chronos-logo-dark.png';
+import { Menu, LogOut, Sun, Moon, CalendarDays } from 'lucide-react';
 
-interface HeaderProps {
-    onMenuClick: () => void;
-}
+const titles: Record<string, string> = {
+    '/': 'Visão geral', '/processes': 'Processos', '/reports': 'Relatórios',
+    '/process-curve': 'Curva de processo', '/bonus-report': 'Bonificações',
+    '/cycles/history': 'Histórico de ciclos', '/users': 'Usuários',
+    '/companies/sectors': 'Setores', '/companies': 'Empresas',
+    '/settings/evaluation': 'Parâmetros de avaliação', '/settings/email': 'Configurações de e-mail',
+    '/system-logs': 'Logs do sistema', '/email-logs': 'Logs de e-mail', '/help': 'Ajuda',
+};
 
-export default function Header({ onMenuClick }: HeaderProps) {
-    const { logout } = useAuth();
+export default function Header({ onMenuClick, cycleMonth }: { onMenuClick: () => void; cycleMonth?: string }) {
+    const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
-
+    const { pathname } = useLocation();
+    const cycleLabel = cycleMonth ? (() => {
+        const [year, month] = cycleMonth.split('-').map(Number);
+        return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {month: 'short', year: 'numeric'});
+    })() : 'Sem ciclo ativo';
     return (
-        <header className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 transition-colors duration-200">
-            <div className="flex items-center justify-between h-full px-3 sm:px-4">
+        <header className="flex-none z-30 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+            <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3">
                 <div className="flex items-center gap-3 min-w-0">
-                    {/* Mobile menu button */}
-                    <button
-                        onClick={onMenuClick}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 xl:hidden"
-                        aria-label="Abrir menu"
-                    >
-                        <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                    </button>
-
-                    {/* Logo for mobile */}
-                    <img src={chronosLogo} alt="Metodo Chronos Logo" className="h-9 sm:h-10 w-auto max-w-[170px] sm:max-w-none object-contain xl:hidden" />
+                    <button onClick={onMenuClick} className="header-action xl:hidden" aria-label="Abrir menu"><Menu className="w-5 h-5" /></button>
+                    <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[.16em] font-semibold text-gray-500">Método Chronos</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">{titles[pathname] || 'Gestão Chronos'}</p>
+                    </div>
                 </div>
-
-                {/* Spacer for desktop */}
-                <div className="hidden xl:block" />
-
-                {/* Right side */}
-                <div className="flex items-center gap-2">
-                    {/* Theme Toggle */}
-                    <button
-                        onClick={toggleTheme}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        title={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-                    >
-                        {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="hidden md:inline-flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs text-gray-600 dark:text-gray-300" title="Ciclo aberto de referência; o período consultado aparece nos filtros da página">
+                        <CalendarDays className="w-4 h-4 text-primary-600" />{cycleLabel}
+                    </span>
+                    <span className="hidden lg:block text-sm text-gray-600 dark:text-gray-300 max-w-40 truncate">{user?.name}</span>
+                    <button onClick={toggleTheme} className="header-action" aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}>
+                        {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
                     </button>
-
-                    {/* Notifications */}
-                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
-                        <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full"></span>
-                    </button>
-
-                    {/* Logout */}
-                    <button
-                        onClick={logout}
-                        className="flex items-center gap-2 px-2 sm:px-3 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        title="Sair"
-                    >
-                        <LogOut className="w-4 h-4" />
-                    </button>
+                    <button onClick={logout} className="header-action" aria-label="Sair"><LogOut className="w-4 h-4" /></button>
                 </div>
             </div>
         </header>
     );
 }
-

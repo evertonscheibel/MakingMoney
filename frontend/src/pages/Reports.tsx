@@ -89,7 +89,10 @@ export default function Reports() {
     };
 
     const uniqueCycles = Array.from(new Set(cycles?.map(c => c.month) || [])).sort().reverse();
-    const calendarPeriod = selectedCycle || summary?.cycle?.month || new Date().toISOString().slice(0, 7);
+    const openMonths = Array.from(new Set(cycles?.filter(c => c.status === 'OPEN').map(c => c.month) || []));
+    const summaryMonth = summary?.cycle?.month;
+    const calendarPeriod = selectedCycle || (summaryMonth && /^\d{4}-\d{2}$/.test(summaryMonth)
+        ? summaryMonth : openMonths.length === 1 ? openMonths[0] : '');
     const filteredProcesses = extract?.bySector ? Object.values(extract.bySector).flat() : [];
 
     return (

@@ -274,6 +274,142 @@ export default function ProcessList() {
         }
     });
 
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const activeFilterCount = [sectorFilter, statusFilter, responsibleFilter, deliveryMode !== 'ALL', sortOrder !== 'asc'].filter(Boolean).length;
+
+    const renderActions = (process: Process) => (
+                                        <div className="flex items-center justify-center gap-1 flex-wrap md:grid md:grid-cols-3 process-actions">
+                                            {/* Delivery Actions based on deliveryStatus */}
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedProcess(process);
+                                                        setShowDeliverModal(true);
+                                                    }}
+                                                    className="p-1 text-success-600 dark:text-success-400 hover:bg-success-50 dark:hover:bg-success-900/20 rounded-md transition-colors"
+                                                    title="Confirmar Entrega"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.CONFIRMED_PENDING_EMAIL, DeliveryStatus.EMAIL_FAILED].includes(process.deliveryStatus!) && (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            sendDeliveryEmailMutation.mutate(process._id);
+                                                        }}
+                                                        className="p-1 text-primary-600 dark:text-primary-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                                                        disabled={sendDeliveryEmailMutation.isPending}
+                                                        title="Enviar Email de Entrega"
+                                                    >
+                                                        <Mail className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setActionReason('');
+                                                            setReasonAction({process, kind: 'revert'});
+                                                        }}
+                                                        className="p-1 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
+                                                        title="Desfazer Confirmação"
+                                                    >
+                                                        <XCircle className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.EMAIL_SENT, DeliveryStatus.EMAIL_QUEUED].includes(process.deliveryStatus!) && (
+                                                <button
+                                                    onClick={() => {
+                                                        setActionReason('');
+                                                        setReasonAction({process, kind: 'revert'});
+                                                    }}
+                                                    className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                                                    title="Reverter Entrega"
+                                                >
+                                                    <XCircle className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={async () => {
+                                                    if (isOperator) {
+                                                        if (confirm('Deseja enviar os detalhes deste processo para os destinatários configurados?')) {
+                                                            setSelectedProcess(process);
+                                                            sendEmailMutation.mutate({ id: process._id, to: 'configured' });
+                                                        }
+                                                    } else {
+                                                        setSelectedProcess(process);
+                                                        // Force fetch latest settings
+                                                        try {
+                                                            const settings = await settingsApi.email.get();
+                                                            if (settings && settings.recipients) {
+                                                                setEmailTo(settings.recipients.join(', '));
+                                                            } else {
+                                                                setEmailTo('');
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Failed to fetch email settings:', error);
+                                                            setEmailTo('');
+                                                        }
+                                                        setShowEmailModal(true);
+                                                    }
+                                                }}
+                                                className="p-1 text-primary-600 dark:text-primary-400 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                disabled={(isOperator && String(process.responsibleUserId) !== String(user?.id || user?._id)) || (sendEmailMutation.isPending && selectedProcess?._id === process._id) || (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)}
+                                                title={(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)
+                                                    ? "Necessário confirmar entrega antes de enviar"
+                                                    : (isOperator ? "Enviar por email (destinatários configurados)" : "Enviar por email")}
+                                            >
+                                                <Mail className="w-4 h-4" />
+                                            </button>
+                                            {isMasterUser && (
+                                                <button
+                                                    onClick={() => {
+                                                        setActionReason('');
+                                                        setReasonAction({process, kind: 'active'});
+                                                    }}
+                                                    className={`p-1 rounded-md transition-colors ${
+                                                        process.isActive === false
+                                                            ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                                                            : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
+                                                    }`}
+                                                    title={process.isActive === false ? 'Ativar Processo' : 'Inativar Processo'}
+                                                >
+                                                    {process.isActive === false ? (
+                                                        <Eye className="w-4 h-4" />
+                                                    ) : (
+                                                        <EyeOff className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                            )}
+                                            {!isOperator && (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedProcess(process);
+                                                            setShowModal(true);
+                                                        }}
+                                                        className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 rounded-md transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {!isOperator && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm('Tem certeza que deseja excluir este processo?')) {
+                                                            deleteMutation.mutate(process._id);
+                                                        }
+                                                    }}
+                                                    className="p-1 text-danger-600 dark:text-danger-400 hover:bg-danger-50 rounded-md transition-colors"
+                                                    title="Excluir"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+    );
+
     const getStatusBadge = (process: Process) => {
         if (process.isActive === false) {
             return (
@@ -361,9 +497,9 @@ export default function ProcessList() {
         if (!selectedProcess) return;
 
         const formData = new FormData(e.currentTarget);
-        
+
         let deliveryDate = formData.get('deliveryDate') as string;
-        
+
         // Fallback for when input is disabled (OPERADOR)
         if (!deliveryDate) {
             const now = new Date();
@@ -458,20 +594,27 @@ export default function ProcessList() {
                 </div>
 
                 {/* Filters */}
-                <div className="card dark:bg-gray-800 dark:border-gray-700">
-                    <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-[minmax(220px,2fr)_minmax(0,5fr)]">
+                <div className="card dark:bg-gray-800 dark:border-gray-700 !p-4">
+                    <p className="section-label mb-3">Filtros de processos</p>
+                    <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(220px,2fr)_minmax(0,5fr)]">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                                 type="text"
+                                aria-label="Buscar processos"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Buscar por código ou título..."
                                 className="input pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white w-full"
                             />
                         </div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                        <button type="button" className="btn-secondary md:hidden justify-between" aria-expanded={showAdvancedFilters} aria-controls="process-advanced-filters" onClick={() => setShowAdvancedFilters(value => !value)}>
+                            {showAdvancedFilters ? 'Ocultar filtros' : 'Filtros avançados'}
+                            <span className="badge-pending">{activeFilterCount} {activeFilterCount === 1 ? 'ativo' : 'ativos'}</span>
+                        </button>
+                        <div id="process-advanced-filters" className={`${showAdvancedFilters ? 'grid' : 'hidden'} md:grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5`}>
                             <select
+                                aria-label="Filtrar por setor"
                                 value={sectorFilter}
                                 onChange={(e) => setSectorFilter(e.target.value)}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -487,6 +630,7 @@ export default function ProcessList() {
                                 })}
                             </select>
                             <select
+                                aria-label="Filtrar por status"
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -498,6 +642,7 @@ export default function ProcessList() {
                                 <option value="CRITICAL">Crítico</option>
                             </select>
                             <select
+                                aria-label="Filtrar por responsável"
                                 value={responsibleFilter}
                                 onChange={(e) => setResponsibleFilter(e.target.value)}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -508,6 +653,7 @@ export default function ProcessList() {
                                 ))}
                             </select>
                             <select
+                                aria-label="Filtrar por entrega"
                                 value={deliveryMode}
                                 onChange={(e) => setDeliveryMode(e.target.value as typeof deliveryMode)}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -519,6 +665,7 @@ export default function ProcessList() {
                                 <option value="NOT_DELIVERED_ONLY">Somente não entregues</option>
                             </select>
                             <select
+                                aria-label="Ordenar processos"
                                 value={sortOrder}
                                 onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
                                 className="input w-full dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -555,7 +702,24 @@ export default function ProcessList() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                     </div>
                 ) : (
-                    <table className="table process-table table-fixed w-full px-2">
+                    <>
+                    <div className="process-mobile md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                        {processesData?.data?.map(process => (
+                            <article key={process._id} className={`p-4 space-y-3 ${process.isActive === false ? "opacity-50" : ""}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0"><p className="text-xs text-gray-500 mb-1">{process.code} · {process.sector}</p><h2 className="font-semibold text-gray-900 dark:text-white break-words">{process.title}</h2></div>
+                                    {getStatusBadge(process)}
+                                </div>
+                                <dl className="grid grid-cols-2 gap-3 text-sm">
+                                    <div><dt className="section-label">Prazo limite</dt><dd className="mt-1">{new Date(process.limitDate).toLocaleDateString("pt-BR", {timeZone: "UTC"})}</dd></div>
+                                    <div><dt className="section-label">Responsável</dt><dd className="mt-1 break-words">{typeof process.responsibleUserId === "object" && process.responsibleUserId ? process.responsibleUserId.name : users?.find(u => (u.id || u._id) === process.responsibleUserId)?.name || process.owner || "Não definido"}</dd></div>
+                                </dl>
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">{getDeliveryStatusBadge(process)}{renderActions(process)}</div>
+                            </article>
+                        ))}
+                        {!processesData?.data?.length && <p className="p-8 text-center text-gray-500">Nenhum processo encontrado</p>}
+                    </div>
+                    <table className="table process-table process-desktop hidden md:table table-fixed w-full min-w-[1100px] px-2">
                         <thead className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                             <tr>
                                 <th className="w-[6%] bg-white dark:bg-gray-800 hidden md:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Código</th>
@@ -567,14 +731,14 @@ export default function ProcessList() {
                                 <th className="w-[10%] bg-white dark:bg-gray-800 hidden lg:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Entrega</th>
                                 <th className="w-[7%] bg-white dark:bg-gray-800 hidden xl:table-cell text-center text-gray-500 dark:text-gray-400 truncate">Pontuação</th>
                                 <th className="w-[11%] bg-white dark:bg-gray-800 hidden xl:table-cell text-left text-gray-500 dark:text-gray-400 truncate">Responsável</th>
-                                <th className="w-[8%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Ações</th>
+                                <th className="w-[16%] bg-white dark:bg-gray-800 text-center text-gray-500 dark:text-gray-400 truncate">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {processesData?.data?.map((process) => (
                                 <tr key={process._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${process.isActive === false ? 'opacity-50' : ''}`}>
                                     <td className="font-mono text-sm text-center hidden md:table-cell truncate">{process.code}</td>
-                                    <td className="font-medium text-gray-900 dark:text-white truncate" title={process.title}>{process.title}</td>
+                                    <td className="font-semibold text-gray-900 dark:text-white" title={process.title}><span className="block break-words">{process.title}</span><span className="block mt-1 text-xs font-normal text-gray-500">{process.owner || process.code}</span></td>
                                     <td className="truncate hidden lg:table-cell" title={process.sector}>{process.sector}</td>
                                     <td className="text-sm text-center hidden md:table-cell truncate">
                                         {new Date(process.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
@@ -606,7 +770,7 @@ export default function ProcessList() {
                                                 ? (process.responsibleUserId as any)._id || (process.responsibleUserId as any).id
                                                 : process.responsibleUserId;
                                             if (!userId) return <span className="text-gray-400">-</span>;
-                                            
+
                                             // First check if populated object name is available
                                             if (typeof process.responsibleUserId === 'object' && process.responsibleUserId !== null && (process.responsibleUserId as any).name) {
                                                 return (
@@ -626,136 +790,7 @@ export default function ProcessList() {
                                         })()}
                                     </td>
                                     <td className="text-center">
-                                        <div className="flex items-center justify-center gap-0.5 flex-wrap">
-                                            {/* Delivery Actions based on deliveryStatus */}
-                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedProcess(process);
-                                                        setShowDeliverModal(true);
-                                                    }}
-                                                    className="p-1 text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20 rounded-md transition-colors"
-                                                    title="Confirmar Entrega"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.CONFIRMED_PENDING_EMAIL, DeliveryStatus.EMAIL_FAILED].includes(process.deliveryStatus!) && (
-                                                <>
-                                                    <button
-                                                        onClick={() => {
-                                                            sendDeliveryEmailMutation.mutate(process._id);
-                                                        }}
-                                                        className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                                                        disabled={sendDeliveryEmailMutation.isPending}
-                                                        title="Enviar Email de Entrega"
-                                                    >
-                                                        <Mail className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setActionReason('');
-                                                            setReasonAction({process, kind: 'revert'});
-                                                        }}
-                                                        className="p-1 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-colors"
-                                                        title="Desfazer Confirmação"
-                                                    >
-                                                        <XCircle className="w-4 h-4" />
-                                                    </button>
-                                                </>
-                                            )}
-                                            {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && [DeliveryStatus.EMAIL_SENT, DeliveryStatus.EMAIL_QUEUED].includes(process.deliveryStatus!) && (
-                                                <button
-                                                    onClick={() => {
-                                                        setActionReason('');
-                                                        setReasonAction({process, kind: 'revert'});
-                                                    }}
-                                                    className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                                                    title="Reverter Entrega"
-                                                >
-                                                    <XCircle className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={async () => {
-                                                    if (isOperator) {
-                                                        if (confirm('Deseja enviar os detalhes deste processo para os destinatários configurados?')) {
-                                                            setSelectedProcess(process);
-                                                            sendEmailMutation.mutate({ id: process._id, to: 'configured' });
-                                                        }
-                                                    } else {
-                                                        setSelectedProcess(process);
-                                                        // Force fetch latest settings
-                                                        try {
-                                                            const settings = await settingsApi.email.get();
-                                                            if (settings && settings.recipients) {
-                                                                setEmailTo(settings.recipients.join(', '));
-                                                            } else {
-                                                                setEmailTo('');
-                                                            }
-                                                        } catch (error) {
-                                                            console.error('Failed to fetch email settings:', error);
-                                                            setEmailTo('');
-                                                        }
-                                                        setShowEmailModal(true);
-                                                    }
-                                                }}
-                                                className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                disabled={(isOperator && String(process.responsibleUserId) !== String(user?.id || user?._id)) || (sendEmailMutation.isPending && selectedProcess?._id === process._id) || (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)}
-                                                title={(!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED)
-                                                    ? "Necessário confirmar entrega antes de enviar"
-                                                    : (isOperator ? "Enviar por email (destinatários configurados)" : "Enviar por email")}
-                                            >
-                                                <Mail className="w-4 h-4" />
-                                            </button>
-                                            {isMasterUser && (
-                                                <button
-                                                    onClick={() => {
-                                                        setActionReason('');
-                                                        setReasonAction({process, kind: 'active'});
-                                                    }}
-                                                    className={`p-1 rounded-md transition-colors ${
-                                                        process.isActive === false
-                                                            ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                                                            : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
-                                                    }`}
-                                                    title={process.isActive === false ? 'Ativar Processo' : 'Inativar Processo'}
-                                                >
-                                                    {process.isActive === false ? (
-                                                        <Eye className="w-4 h-4" />
-                                                    ) : (
-                                                        <EyeOff className="w-4 h-4" />
-                                                    )}
-                                                </button>
-                                            )}
-                                            {!isOperator && (
-                                                <>
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedProcess(process);
-                                                            setShowModal(true);
-                                                        }}
-                                                        className="p-1 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                                                        title="Editar"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </button>
-                                                </>
-                                            )}
-                                            {!isOperator && (
-                                                <button
-                                                    onClick={() => {
-                                                        if (confirm('Tem certeza que deseja excluir este processo?')) {
-                                                            deleteMutation.mutate(process._id);
-                                                        }
-                                                    }}
-                                                    className="p-1 text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </div>
+                                        {renderActions(process)}
                                     </td>
                                 </tr>
                             ))}
@@ -768,6 +803,7 @@ export default function ProcessList() {
                             )}
                         </tbody>
                     </table>
+                    </>
                 )}
                 </div>
             </div>
@@ -776,14 +812,15 @@ export default function ProcessList() {
             {
                 showModal && (
                     <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg">
+                        <div role="dialog" aria-modal="true" aria-label={selectedProcess ? "Editar processo" : "Novo processo"} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
                             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                                     {selectedProcess ? 'Editar Processo' : 'Novo Processo'}
                                 </h2>
                             </div>
                             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <p className="section-label form-section">Identificação e responsabilidade</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="label">Código</label>
                                         <input
@@ -793,9 +830,9 @@ export default function ProcessList() {
                                             className="input bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
                                             readOnly
                                             disabled={!selectedProcess} // Disable if creating, but backend ignores code anyway on create if not provided (Wait, checking logic).
-                                        // Actuall backend logic: if code not provided, auto-generate. 
+                                        // Actuall backend logic: if code not provided, auto-generate.
                                         // So for new process, we can just leave it empty.
-                                        // But for edit, user might want to change it? 
+                                        // But for edit, user might want to change it?
                                         // "Os IDs dos processos devem ser fornecidos automaticamente" -> implies user shouldn't change manualy.
                                         // I'll make it readonly always relative to 'auto managed'. But let's verify if user wants to edit it ever.
                                         // "não permita que um ID seja repetido" -> auto logic handles this.
@@ -894,7 +931,25 @@ export default function ProcessList() {
                                         className="input"
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                {!isOperator && (
+                                    <div>
+                                        <label className="label">Operador Responsável</label>
+                                        <select
+                                            name="responsibleUserId"
+                                            defaultValue={typeof selectedProcess?.responsibleUserId === 'object' ? (selectedProcess.responsibleUserId as any)?._id : (selectedProcess?.responsibleUserId || '')}
+                                            className="input"
+                                        >
+                                            <option value="">Não atribuído</option>
+                                            {users?.map((u) => (
+                                                <option key={u.id || u._id} value={u.id || u._id}>
+                                                    {u.name} ({u.email})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                <p className="section-label form-section pt-2">Planejamento e prazos</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="label">Data Planejada</label>
                                         <input
@@ -916,23 +971,7 @@ export default function ProcessList() {
                                         />
                                     </div>
                                 </div>
-                                {!isOperator && (
-                                    <div>
-                                        <label className="label">Operador Responsável</label>
-                                        <select
-                                            name="responsibleUserId"
-                                            defaultValue={typeof selectedProcess?.responsibleUserId === 'object' ? (selectedProcess.responsibleUserId as any)?._id : (selectedProcess?.responsibleUserId || '')}
-                                            className="input"
-                                        >
-                                            <option value="">Não atribuído</option>
-                                            {users?.map((u) => (
-                                                <option key={u.id || u._id} value={u.id || u._id}>
-                                                    {u.name} ({u.email})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
+
                                 <div className="flex justify-end gap-3 pt-4">
                                     <button
                                         type="button"
@@ -1100,7 +1139,7 @@ export default function ProcessList() {
             {/* Import Modal */}
             {showImportModal && (
                 <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg">
+                    <div role="dialog" aria-modal="true" aria-label="Importar processos" className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Importar Processos (Excel)</h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -1137,7 +1176,7 @@ export default function ProcessList() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="label">Setor para o lote</label>
                                     <select name="sector" className="input" required>
@@ -1162,7 +1201,7 @@ export default function ProcessList() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="label">Data Planejada</label>
                                     <input type="date" name="plannedDate" className="input" required />

@@ -520,7 +520,8 @@ export default function Dashboard() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {stats.map((stat) => (
-                        <div
+                        <button
+                            type="button"
                             key={stat.name}
                             onClick={() => {
                                 const params = new URLSearchParams();
@@ -530,24 +531,52 @@ export default function Dashboard() {
                                 if (selectedSector) params.append('sector', selectedSector);
                                 navigate(`/processes?${params.toString()}`);
                             }}
-                            className="card hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+                            className="kpi-card"
                         >
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-row-reverse items-start justify-between gap-4">
                                 <div className={`p-3 rounded-xl ${stat.bgColor} dark:bg-opacity-20`}>
                                     <stat.icon className={`w-6 h-6 ${stat.color}`} />
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{stat.name}</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                    <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-white">{stat.value}</p>
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}
 
+            {summary && (!selectedSector || selectedCycleObj?.status === CycleStatus.OPEN) && (
+                <section className="card" aria-label="O que precisa de atenção">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">O que precisa de atenção</h2>
+                            <p className="text-sm text-gray-500">Pendências do escopo consultado no ciclo.</p>
+                        </div>
+                        <span className="badge-pending">{selectedSector || 'Todos os setores'}</span>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                        {[
+                            {label: 'Processos críticos', count: summary.kpis.criticalCount, status: 'CRITICAL', style: 'text-danger-600'},
+                            {label: 'Entregas atrasadas', count: summary.kpis.lateCount, status: 'LATE', style: 'text-warning-700'},
+                            {label: 'Processos pendentes', count: summary.kpis.pendingCount, status: 'PENDING', style: 'text-gray-700 dark:text-gray-200'},
+                        ].map(item => (
+                            <button key={item.status} type="button" onClick={() => {
+                                const params = new URLSearchParams({status: item.status});
+                                if (selectedSector) params.set('sector', selectedSector);
+                                navigate(`/processes?${params}`);
+                            }} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-primary-500">
+                                <span className="text-sm text-gray-600 dark:text-gray-300">{item.label}</span>
+                                <span className={`text-2xl font-semibold tabular-nums ${item.style}`}>{item.count}</span>
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             {/* Benchmark Section */}
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="card border-l-4 border-l-primary-500">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Minha Pontuação Média</span>
@@ -566,10 +595,10 @@ export default function Dashboard() {
                     </p>
                 </div>
 
-                <div className="card border-l-4 border-l-indigo-500">
+                <div className="card border-l-4 border-l-gray-200">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Média da Equipe (Benchmark)</span>
-                        <TrendingUp className="w-5 h-5 text-indigo-500" />
+                        <TrendingUp className="w-5 h-5 text-gray-400" />
                     </div>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-bold text-gray-900 dark:text-white">
