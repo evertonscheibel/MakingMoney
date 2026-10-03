@@ -19,7 +19,7 @@ import {
 import { useState } from 'react';
 import { UserRole } from '../types';
 
-import logo from '../assets/logo.png';
+import logo from '../assets/bridge-tecnologia.png';
 import chronosLogo from '../assets/chronos-logo-dark.png';
 import { hasMenuAccess } from '../utils/menuPermissions';
 
@@ -92,21 +92,21 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       `}
         >
             {/* Header */}
-            <div className="relative flex-none h-[7.5rem] overflow-hidden bg-slate-950 border-b border-slate-800">
+            <div className="relative flex-none h-[9.25rem] overflow-hidden bg-slate-950 border-b border-slate-800">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(22,163,74,0.24),transparent_44%)]" />
                 <div className="relative flex h-full items-center justify-between px-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <div className="h-[5.25rem] w-[8.5rem] flex-none overflow-hidden rounded-2xl border border-white/10 bg-black shadow-lg shadow-black/30">
-                            <img src={chronosLogo} alt="Metodo Chronos Logo" className="h-full w-full scale-[1.32] object-contain" />
+                    <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                        <div className="h-[4.5rem] w-[10rem] flex-none overflow-hidden rounded-2xl border border-white/10 bg-black shadow-lg shadow-black/30">
+                            <img src={chronosLogo} alt="Logo Making Money — Método Chronos" className="h-full w-full object-contain" />
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-400">Método</p>
-                            <p className="mt-1 text-sm font-semibold leading-tight text-white">Gestão Chronos</p>
+                        <div className="min-w-0 w-full text-center">
+                            <p className="text-base font-bold leading-tight text-white">Making Money</p>
+                            <p className="mt-1 text-sm font-semibold leading-tight text-primary-300">Método Chronos</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="ml-2 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
+                        className="absolute right-2 top-2 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
                         aria-label="Fechar menu"
                     >
                         <X className="w-5 h-5" />
@@ -218,10 +218,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                     </div>
                 </div>
-                <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-1 overflow-hidden">
-                    <span className="text-[8px] text-slate-500 font-semibold tracking-[0.16em] uppercase whitespace-nowrap">Por</span>
-                    <div className="h-11 w-32 overflow-hidden">
-                        <img src={logo} alt="BridgeLogic Logo" className="h-full w-full scale-[1.32] object-contain" />
+                <div className="mt-2.5 rounded-xl border border-slate-800 bg-slate-950 p-2">
+                    <p className="mb-1.5 text-center text-[9px] text-slate-400 font-semibold tracking-[0.16em] uppercase">Desenvolvido por Bridge Tecnologia</p>
+                    <div className="w-full">
+                        <img src={logo} alt="Bridge Tecnologia — Padronização, Automação, Indicadores acionáveis, Execução simples, Auditável e Escalável" className="block h-auto w-full rounded-md object-contain" />
                     </div>
                 </div>
             </div>
