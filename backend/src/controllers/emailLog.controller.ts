@@ -64,6 +64,7 @@ export const resendEmail = asyncHandler(async (req: Request, res: Response): Pro
     }
 
     if (log.category === 'process_delivery') throw new AppError('Reenvie a notificação pela entrega do processo para validar o ciclo e o estado atual.', 400);
+    if (log.category === 'report_share') throw new AppError('Envie novamente pelo relatório para gerar e anexar o PDF atualizado.', 400);
 
     // Clone to queue
     // Note: We need the original body. 

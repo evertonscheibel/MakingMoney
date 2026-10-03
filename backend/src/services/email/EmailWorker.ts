@@ -101,12 +101,13 @@ export class EmailWorker {
                 html: current.body.html, // Ensure Footer injection happening before queueing or here? Here is safer.
                 text: current.body.text,
                 replyTo: config.replyTo,
+                attachments: current.attachments?.map(attachment => ({ filename: attachment.filename, content: Buffer.from(attachment.content), contentType: attachment.contentType })),
             });
 
             // Success
             await EmailQueue.findByIdAndUpdate(current._id, {
-                status: EmailStatus.SENT,
-                updatedAt: new Date()
+                $set: { status: EmailStatus.SENT, updatedAt: new Date() },
+                $unset: { attachments: 1 }
             });
             await syncDeliveryEmailStatus(current);
 

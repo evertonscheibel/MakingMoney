@@ -234,6 +234,12 @@ export const processesApi = {
 // ==================== REPORTS ====================
 
 export const reportsApi = {
+    getEmailOptions: async (): Promise<{ configured: boolean; recipients: { email: string; name: string }[]; template: { subject: string; htmlBody: string }; companyName: string; senderName: string }> => apiCall('get', '/reports/email/options'),
+    getEmailStatus: async (ids: string[]): Promise<{ id: string; to: string; status: string; attempts: number }[]> => apiCall('get', '/reports/email/status', { ids: ids.join(',') }),
+    sendEmail: async (data: FormData): Promise<{ queued: number; ids: string[] }> => {
+        const response = await api.post('/reports/email/send', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+        return response.data.data;
+    },
     getSummary: async (cycleId?: string, sector?: string, period?: string, status?: string): Promise<SummaryKPIs> => {
         return apiCall<SummaryKPIs>('get', '/reports/summary', { cycleId, sector, period, status });
     },

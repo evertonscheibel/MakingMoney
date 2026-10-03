@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, companiesApi, cyclesApi } from '../api';
 import { useAuth } from '../contexts';
-import { Printer, FileDown, List, CalendarDays } from 'lucide-react';
+import { List, CalendarDays } from 'lucide-react';
 import { ProcessStatus } from '../types';
-import { exportDetailedReportPDF } from '../utils/reportsPdfExport';
+import { buildDetailedReportPDF } from '../utils/reportsPdfExport';
+import ReportActions from '../components/ReportActions';
+import { reportFilename } from '../utils/reportDocument';
 import ProcessScheduleCalendar from '../components/ProcessScheduleCalendar';
 
 const STATUS_LABELS = {
@@ -21,7 +23,6 @@ export default function Reports() {
     const [selectedSector, setSelectedSector] = useState<string>('');
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedStatus, setSelectedStatus] = useState<string>('');
-    const [isExporting, setIsExporting] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
     const { data: company } = useQuery({
@@ -36,15 +37,15 @@ export default function Reports() {
         enabled: !!user?.activeCompanyId,
     });
 
-    const { data: summary } = useQuery({
-        queryKey: ['summary', selectedCycle, selectedSector, selectedStatus],
+    const { data: summary, isFetching: summaryFetching, isError: summaryError } = useQuery({
+        queryKey: ['summary', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus],
         queryFn: () => reportsApi.getSummary(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined),
         enabled: !!user?.activeCompanyId,
     });
 
 
-    const { data: extract } = useQuery({
-        queryKey: ['extract', selectedCycle, selectedSector, selectedStatus],
+    const { data: extract, isFetching: extractFetching, isError: extractError } = useQuery({
+        queryKey: ['extract', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus],
         queryFn: () => reportsApi.getExtract(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined),
         enabled: !!user?.activeCompanyId,
     });
@@ -63,34 +64,22 @@ export default function Reports() {
     }
 
 
-    const handlePrint = () => {
-        window.print();
-    };
-
-    const handleExportPDF = async () => {
-        if (!summary || !extract || !company) return;
-        
-        setIsExporting(true);
-        try {
-            exportDetailedReportPDF({
-                companyName: company.name,
-                cycle: selectedCycle || summary.cycle?.month || 'ATUAL',
-                sector: selectedSector,
-                status: selectedStatus ? STATUS_LABELS[selectedStatus as keyof typeof STATUS_LABELS] : undefined,
-                summary,
-                extract
-            });
-        } catch (e) {
-            console.error('Erro ao exportar PDF:', e);
-            alert('Falha ao gerar o PDF. Verifique o console.');
-        } finally {
-            setIsExporting(false);
-        }
+    const buildDocument = () => {
+        if (!summary || !extract || !company) throw new Error('Dados indisponíveis');
+        return buildDetailedReportPDF({
+            companyName: company.name,
+            cycle: documentPeriod,
+            sector: selectedSector,
+            status: selectedStatus ? STATUS_LABELS[selectedStatus as keyof typeof STATUS_LABELS] : undefined,
+            issuedBy: user.name,
+            summary, extract,
+        });
     };
 
     const uniqueCycles = Array.from(new Set(cycles?.map(c => c.month) || [])).sort().reverse();
     const openMonths = Array.from(new Set(cycles?.filter(c => c.status === 'OPEN').map(c => c.month) || []));
     const summaryMonth = summary?.cycle?.month;
+    const documentPeriod = selectedCycle || (summaryMonth && /^\d{4}-\d{2}$/.test(summaryMonth) ? summaryMonth : openMonths.length === 1 ? openMonths[0] : 'Ciclos abertos por setor');
     const calendarPeriod = selectedCycle || (summaryMonth && /^\d{4}-\d{2}$/.test(summaryMonth)
         ? summaryMonth : openMonths.length === 1 ? openMonths[0] : '');
     const filteredProcesses = extract?.bySector ? Object.values(extract.bySector).flat() : [];
@@ -127,21 +116,15 @@ export default function Reports() {
                             Calendário
                         </button>
                     </div>
-                    <button 
-                        onClick={handleExportPDF} 
-                        disabled={isExporting || !summary || !extract}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <FileDown className="w-4 h-4" />
-                        {isExporting ? 'Gerando...' : 'Exportar PDF'}
-                    </button>
-                    <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
-                        <Printer className="w-4 h-4" />
-                        Imprimir
-                    </button>
+                    <ReportActions build={buildDocument}
+                        emailContext={{ title: 'Relatório operacional', period: documentPeriod, sector: selectedSector }}
+                        filename={reportFilename('operacional', selectedCycle || 'ciclos_abertos')}
+                        disabled={!company || !summary || !extract || summaryFetching || extractFetching || summaryError || extractError} />
                 </div>
             </div>
 
+            <p className="text-sm text-gray-500">PDF e impressão usam um documento próprio, com identificação, indicadores e detalhamento por setor.</p>
+            {(summaryError || extractError) && <p role="alert" className="text-sm text-red-700">Não foi possível carregar os dados do relatório. Recarregue a página para tentar novamente.</p>}
             {/* Filters */}
             <div className="card bg-gray-50/50">
                 <div className="flex flex-wrap items-end gap-4">

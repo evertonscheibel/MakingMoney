@@ -11,8 +11,12 @@ import {
 } from '../controllers';
 
 const router = Router();
+import { getReportEmailOptions, getReportEmailStatus, sendReportEmail, requireReportSender, uploadReport } from '../controllers/reportEmail.controller';
 
 router.use(authenticate, requireCompany);
+router.get('/email/options', requireReportSender, getReportEmailOptions);
+router.get('/email/status', requireReportSender, getReportEmailStatus);
+router.post('/email/send', requireReportSender, uploadReport, sendReportEmail);
 
 // Summary KPIs
 router.get('/summary', validate(reportValidation), getSummary);

@@ -4,13 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { bonusApi, companiesApi } from '../api';
 import { useAuth } from '../contexts';
 import {
-    FileDown, Award, CheckCircle2, XCircle, TrendingUp,
+    Award, CheckCircle2, XCircle, TrendingUp,
     Users, Search, Filter, BarChart3, DollarSign, Target,
     Calculator
 } from 'lucide-react';
 import { BonusCalculationMode } from '../types';
 import type { BonusReportUser, BonusSectorSummary } from '../types';
-import { exportBonusPDF } from '../utils/bonusPdfExport';
+import { buildBonusPDF } from '../utils/bonusPdfExport';
+
+import ReportActions from '../components/ReportActions';
+import { reportFilename } from '../utils/reportDocument';
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 const QUARTER_LABELS: Record<string, string> = {
@@ -51,7 +54,6 @@ export default function BonusReport() {
     const [searchName, setSearchName] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('overview');
-    const [isExporting, setIsExporting] = useState(false);
 
     const { data: company } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
@@ -59,8 +61,8 @@ export default function BonusReport() {
         enabled: !!user?.activeCompanyId,
     });
 
-    const { data: report, isLoading } = useQuery({
-        queryKey: ['bonus-report', selectedQuarter, selectedYear, selectedSector, selectedMode],
+    const { data: report, isLoading, isFetching, isError } = useQuery({
+        queryKey: ['bonus-report', user?.activeCompanyId, selectedQuarter, selectedYear, selectedSector, selectedMode],
         queryFn: () => bonusApi.getReport({
             quarter: selectedQuarter,
             year: selectedYear,
@@ -93,18 +95,11 @@ export default function BonusReport() {
         return report.sectors;
     }, [report, statusFilter]);
 
-    const handleExportPDF = async () => {
-        if (!report || report.users.length === 0) return;
-        
-        setIsExporting(true);
-        try {
-            const name = company?.name || 'Empresa';
-            exportBonusPDF(report, name);
-        } catch (e) {
-            console.error('Erro ao exportar PDF:', e);
-        } finally {
-            setIsExporting(false);
-        }
+    const buildDocument = () => {
+        if (!report || !company) throw new Error('Dados indisponíveis');
+        return buildBonusPDF(report, company.name, {
+            issuedBy: user?.name, search: searchName, qualification: statusFilter, sector: selectedSector,
+        });
     };
 
     if (!user?.activeCompanyId) {
@@ -152,17 +147,15 @@ export default function BonusReport() {
                             <Users className="w-4 h-4" />
                         </button>
                     </div>
-                    <button
-                        onClick={handleExportPDF}
-                        disabled={isExporting || !report || report.users.length === 0}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <FileDown className="w-4 h-4" />
-                        {isExporting ? 'Gerando...' : 'Exportar PDF'}
-                    </button>
+                    <ReportActions build={buildDocument}
+                        emailContext={{ title: 'Relatório de bonificações', period: `${QUARTER_LABELS[selectedQuarter]} / ${selectedYear}`, sector: selectedSector }}
+                        filename={reportFilename('bonificacoes', `${selectedYear}_${selectedQuarter}`)}
+                        disabled={!company || !report || isFetching || isError} />
                 </div>
             </div>
 
+            <p className="text-sm text-gray-500">O documento considera trimestre, setor, modo de cálculo, situação e busca por nome selecionados.</p>
+            {isError && <p role="alert" className="text-sm text-red-700">Não foi possível carregar as bonificações. Recarregue a página para tentar novamente.</p>}
             {/* ── Filters ── */}
             <div className="card bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                 <div className="flex flex-wrap items-end gap-3">

@@ -21,6 +21,9 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
+import ReportActions from '../components/ReportActions';
+import { buildCurvePDF } from '../utils/curvePdfExport';
+import { reportFilename } from '../utils/reportDocument';
 import { UserRole } from '../types';
 
 export default function ProcessCurveReport() {
@@ -52,17 +55,17 @@ export default function ProcessCurveReport() {
     const { data: company } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!.toString()),
-        enabled: !!user?.activeCompanyId && !isOperator && !isStrictManager,
+        enabled: !!user?.activeCompanyId,
     });
 
     const { data: users } = useQuery({
-        queryKey: ['users'],
+        queryKey: ['users', user?.activeCompanyId],
         queryFn: () => usersApi.list(),
         enabled: !isOperator && !!user?.activeCompanyId,
     });
 
-    const { data: curveData, isLoading } = useQuery({
-        queryKey: ['process-curve', period, effectiveSector, selectedUserId],
+    const { data: curveData, isLoading, isFetching, isError } = useQuery({
+        queryKey: ['process-curve', user?.activeCompanyId, period, effectiveSector, selectedUserId],
         queryFn: () => reportsApi.getProcessCurve({
             period,
             sector: effectiveSector || undefined,
@@ -70,6 +73,15 @@ export default function ProcessCurveReport() {
         }),
         enabled: !!user?.activeCompanyId && !!period,
     });
+
+    const buildDocument = () => {
+        if (!curveData || !company) throw new Error('Dados indisponíveis');
+        return buildCurvePDF(curveData, {
+            companyName: company.name, period, sector: effectiveSector,
+            operator: isOperator ? user?.name : selectedUserId ? users?.find(u => u._id === selectedUserId)?.name || 'Responsável selecionado' : undefined,
+            issuedBy: user?.name,
+        });
+    };
 
     const handlePrevMonth = () => {
         const [year, month] = period.split('-').map(Number);
@@ -149,6 +161,8 @@ export default function ProcessCurveReport() {
                 </div>
             </div>
 
+            <ReportActions build={buildDocument} emailContext={{ title: 'Curva de processos', period, sector: effectiveSector }} filename={reportFilename('curva_processos', period)} disabled={!company || !curveData || isFetching || isError} />
+            {isError && <p role="alert" className="text-sm text-red-700">Não foi possível carregar a curva de processos. Recarregue a página para tentar novamente.</p>}
             {/* Filters */}
             <div className="card flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">

@@ -21,6 +21,9 @@ export interface IEmailQueue {
     entityType?: string;
     deliveryBatchId?: string;
     createdByUserId?: Schema.Types.ObjectId;
+    attachments?: { filename: string; content: Buffer; contentType: string }[];
+    reportSendId?: string;
+    reportPayloadHash?: string;
 
     // Control
     status: EmailStatus;
@@ -49,6 +52,9 @@ const emailQueueSchema = new Schema<IEmailQueueDocument>(
         entityType: { type: String },
         deliveryBatchId: { type: String },
         createdByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+        attachments: [{ filename: String, content: Buffer, contentType: String }],
+        reportSendId: String,
+        reportPayloadHash: String,
 
         status: {
             type: String,
@@ -68,6 +74,7 @@ const emailQueueSchema = new Schema<IEmailQueueDocument>(
 
 // Index for worker polling
 emailQueueSchema.index({ status: 1, nextAttemptAt: 1 });
+emailQueueSchema.index({ companyId: 1, createdByUserId: 1, reportSendId: 1, to: 1 }, { unique: true, partialFilterExpression: { reportSendId: { $exists: true } } });
 
 export const EmailQueue = model<IEmailQueueDocument>('EmailQueue', emailQueueSchema);
 

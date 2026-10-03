@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Check, Mail, RefreshCw, Sparkles, Users, X } from 'lucide-react';
+import { CalendarDays, Check, Mail, FileText, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../contexts';
 import { UserRole } from '../types';
 
-const NOTICE_VERSION = '2026-10-manager-updates-v2';
+const NOTICE_VERSION = '2026-10-reports-email-v3';
 
 const updates = [
-    { icon: CalendarDays, title: 'Calendário com reagendamento', description: 'Em Relatórios, arraste os marcadores P (planejado) e L (limite) para ajustar as datas dos processos permitidos. O calendário também destaca os dias com maior concentração de atividades.' },
-    { icon: RefreshCw, title: 'Fechamento e abertura automática de ciclos', description: 'Cada setor pode ficar no modo manual (padrão) ou automático, em Empresas → Setores → editar → "Fechamento automático". No automático, no dia e horário configurados o sistema fecha o ciclo do mês anterior, grava os indicadores, abre o ciclo do mês seguinte e copia os processos com as datas avançadas um mês, zerando entregas e notas. Datas que caírem no domingo seguem a regra escolhida (manter, dia anterior, dia útil anterior, dia seguinte ou próximo dia útil). Feriados não são considerados. Em seguida, os gestores do setor recebem um e-mail para revisar as datas no calendário. Para voltar ao manual, basta desmarcar a opção; o fechamento manual continua disponível.' },
-    { icon: Users, title: 'Mais de um responsável por setor', description: 'Agora é possível cadastrar vários gestores no mesmo setor para compartilhar o acompanhamento e receber as notificações.' },
-    { icon: Mail, title: 'E-mails personalizados por categoria', description: 'Nas configurações de e-mail, os usuários com permissão podem personalizar o assunto e o corpo das mensagens de cada categoria.' },
+    { icon: FileText, title: 'Relatórios com estrutura própria', description: 'Relatórios, Bonificações e Curva de Processo agora geram documentos com título, empresa, período, filtros, cabeçalho, rodapé e numeração em todas as páginas. Use Exportar PDF ou Visualizar / Imprimir na própria área.' },
+    { icon: Mail, title: 'Enviar relatórios por e-mail', description: 'Gestores e Master podem usar Enviar por e-mail dentro dos relatórios, selecionar destinatários cadastrados, editar o assunto e escrever uma mensagem para aquele envio. O PDF é anexado automaticamente.' },
+    { icon: Mail, title: 'Mensagem fixa configurável', description: 'O Master pode configurar o texto padrão em Config. Email → Mensagens enviadas → Envio de relatórios. A mensagem escrita pelo gestor é acrescentada ao padrão sem alterá-lo. O servidor SMTP da empresa deve estar ativo.' },
+    { icon: Check, title: 'Acompanhamento do envio', description: 'A janela informa se o envio está aguardando, em tentativa ou foi aceito pelo servidor SMTP. Essa confirmação não comprova leitura ou recebimento na caixa de entrada.' },
 ];
-
 export default function ManagerReleaseNotice() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -33,8 +32,8 @@ export default function ManagerReleaseNotice() {
             sector => [...(sector.managerIds || []), ...(sector.managerId ? [sector.managerId] : [])].some(id => String(id) === String(userId)),
         );
 
-        return user.roles.includes(UserRole.MANAGER)
-            || activeCompanyRole === UserRole.MANAGER
+        return user.roles.includes(UserRole.MASTER) || user.roles.includes(UserRole.MANAGER)
+            || activeCompanyRole === UserRole.MASTER || activeCompanyRole === UserRole.MANAGER
             || Boolean(managesRegisteredSector);
     }, [user]);
 
@@ -72,9 +71,9 @@ export default function ManagerReleaseNotice() {
                         <Sparkles className="w-4 h-4" />
                         Novidades no Método Chronos
                     </div>
-                    <h2 id="release-notice-title" className="relative text-2xl font-bold text-white">Novas ferramentas para os gestores</h2>
+                    <h2 id="release-notice-title" className="relative text-2xl font-bold text-white">Relatórios e envio por e-mail</h2>
                     <p className="relative mt-2 text-sm leading-6 text-primary-50">
-                        Conheça as novidades de outubro para organizar os processos e acompanhar sua equipe.
+                        Novidades de 3 de outubro para gestores e Master.
                     </p>
                 </div>
 
@@ -95,7 +94,7 @@ export default function ManagerReleaseNotice() {
 
                     <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-4 py-3 flex items-start gap-2.5 text-xs leading-5 text-gray-600 dark:text-gray-300">
                         <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-success-600" />
-                        Revise as datas do novo ciclo e confira com a administração as configurações do seu setor.
+                        Os botões estão nas áreas atuais do sistema. Nenhum novo menu foi criado.
                     </div>
 
                     <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
@@ -104,7 +103,7 @@ export default function ManagerReleaseNotice() {
                         </button>
                         <button type="button" onClick={openReports} className="btn-primary">
                             <CalendarDays className="w-4 h-4" />
-                            Abrir calendário
+                            Abrir relatórios
                         </button>
                     </div>
                 </div>
