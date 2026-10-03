@@ -7,6 +7,8 @@ Sistema completo de automação de ciclos de negócios, focado em gestão de pro
 ![Node.js](https://img.shields.io/badge/node.js-v18%2B-green.svg)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)
 
+> Projeto de portfólio em evolução. A automação do GitHub registra build, testes e lint como linha de base, enquanto o Dependabot organiza atualizações de dependências. Consulte [SECURITY.md](SECURITY.md) antes de qualquer implantação.
+
 ## 🌟 Funcionalidades
 
 - **📧 Engine de E-mail Marketing**: Gestão de filas (`EmailQueue`), configurações de SMTP e rastreamento de eventos de entrega/abertura.

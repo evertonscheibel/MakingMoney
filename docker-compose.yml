@@ -27,7 +27,7 @@ services:
         condition: service_healthy
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/gestaopro
-      - JWT_SECRET=${JWT_SECRET:-super-secret-key-change-me}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be defined in the environment}
       - JWT_EXPIRES_IN=7d
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=production
