@@ -19,7 +19,6 @@ import {
 import { useState } from 'react';
 import { UserRole } from '../types';
 
-import logo from '../assets/bridge-tecnologia.png';
 import chronosLogo from '../assets/chronos-logo-dark.png';
 import { hasMenuAccess } from '../utils/menuPermissions';
 
@@ -218,12 +217,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                     </div>
                 </div>
-                <div className="mt-2.5 rounded-xl border border-slate-800 bg-slate-950 p-2">
-                    <p className="mb-1.5 text-center text-[9px] text-slate-400 font-semibold tracking-[0.16em] uppercase">Desenvolvido por Bridge Tecnologia</p>
-                    <div className="w-full">
-                        <img src={logo} alt="Bridge Tecnologia — Padronização, Automação, Indicadores acionáveis, Execução simples, Auditável e Escalável" className="block h-auto w-full rounded-md object-contain" />
-                    </div>
-                </div>
+                <p className="mt-2.5 text-center text-[9px] text-slate-400 font-semibold tracking-[0.16em] uppercase">Desenvolvido por Bridge Tecnologia</p>
             </div>
         </aside>
     );
