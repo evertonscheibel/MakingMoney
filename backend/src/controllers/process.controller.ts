@@ -328,7 +328,11 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     // previously caused every process a MASTER saved to be silently
     // deactivated, since this form has no "active" field at all.
     if (updates.sector && updates.sector !== process.sector) throw new AppError('Crie o processo no ciclo do setor de destino; o setor não pode ser alterado nesta edição.', 400);
-    await assertResponsibleAccess(req, updates.responsibleUserId, updates.sector || process.sector);
+    // Only re-validate the responsible when it actually changes; otherwise editing
+    // dates of a process whose current responsible lacks sector assignment fails.
+    if (updates.responsibleUserId && String(updates.responsibleUserId) !== String(process.responsibleUserId || '')) {
+        await assertResponsibleAccess(req, updates.responsibleUserId, updates.sector || process.sector);
+    }
     const before = process.toObject();
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
