@@ -16,6 +16,7 @@ import {
     Cell,
     PieChart,
     Pie,
+    LabelList,
 } from 'recharts';
 import {
     TrendingUp,
@@ -251,13 +252,14 @@ export default function ProcessCurveReport() {
                     <div className="h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
                             {breakdownChart === 'bar' ? (
-                                <BarChart data={curveData?.deliveryBreakdown} layout="vertical" margin={{ left: 40 }}>
+                                <BarChart data={curveData?.deliveryBreakdown} layout="vertical" margin={{ left: 40, right: 30 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                     <XAxis type="number" allowDecimals={false} />
                                     <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 12 }} />
-                                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
                                     <Bar dataKey="count" name="Processos" radius={[0, 4, 4, 0]}>
                                         {curveData?.deliveryBreakdown?.map(item => <Cell key={item.key} fill={DELIVERY_COLORS[item.key]} />)}
+                                        <LabelList dataKey="count" position="right" />
                                     </Bar>
                                 </BarChart>
                             ) : (

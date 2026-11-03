@@ -175,11 +175,11 @@ function ProcessEvolutionDetail({ row, months, onClose }: { row: ProcessPerforma
             </div>
             <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <BarChart data={chartData} margin={{ top: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="month" />
                         <YAxis domain={[0, 100]} />
-                        <Tooltip formatter={(value) => value == null ? 'Sem avaliação' : formatScore(Number(value))} />
+                        <Tooltip cursor={{ fill: 'transparent' }} formatter={(value) => value == null ? 'Sem avaliação' : formatScore(Number(value))} />
                         <Bar dataKey="score" name="Pontuação" radius={[4, 4, 0, 0]}>
                             {chartData.map((point, i) => <Cell key={i} fill={point.score != null ? SCORE_BAND_COLORS[scoreBand(point.score)] : 'transparent'} />)}
                             <LabelList dataKey="score" position="top" formatter={(value: unknown) => value == null ? '' : formatScore(Number(value))} />
