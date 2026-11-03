@@ -34,7 +34,7 @@ import PerformanceDetails from '../components/PerformanceDetails';
 import { formatPerformanceAverage } from '../utils/performance';
 
 const DELIVERY_COLORS: Record<string, string> = {
-    EARLY: '#2563eb', ON_PLANNED: '#3b82f6', WITHIN_LIMIT: '#eab308', LATE: '#f97316', CRITICAL: '#ef4444', PENDING: '#9ca3af',
+    EARLY: '#2563eb', ON_PLANNED: '#3b82f6', LATE: '#eab308', CRITICAL: '#ef4444', PENDING: '#9ca3af',
 };
 
 export default function ProcessCurveReport() {
@@ -271,7 +271,7 @@ export default function ProcessCurveReport() {
                             )}
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Cada processo do mês aparece uma vez, pela pontuação da entrega em relação à data planejada e ao limite.</p>
+                    <p className="text-xs text-gray-500 mt-2">Cada processo do mês aparece uma vez, pela data da entrega em relação à data planejada e ao limite.</p>
                 </div>
 
                 {/* Delay and Critical Chart */}

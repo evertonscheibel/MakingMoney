@@ -1,3 +1,4 @@
+import { businessToday } from '../utils/assessment';
 import { Request, Response } from 'express';
 import { query } from 'express-validator';
 // Dynamic imports used inside functions to avoid circular dependencies
@@ -613,20 +614,20 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
         code: p.code, title: p.title, sector: p.sector, plannedDate: p.plannedDate, limitDate: p.limitDate, deliveryDate: p.deliveryDate, responsible: (p.responsibleUserId as any)?.name || 'N/A',
     }));
 
-    // Non-cumulative delivery outcome per process; score bands follow the evaluation parameters (100/75/50/25/0).
+    // Non-cumulative delivery outcome per process, from Cuiabá calendar dates (independent of configured point values).
     const bands = [
         { key: 'EARLY', label: 'Antes do planejado', count: 0 },
         { key: 'ON_PLANNED', label: 'Na data planejada', count: 0 },
-        { key: 'WITHIN_LIMIT', label: 'Até o meio da tolerância', count: 0 },
-        { key: 'LATE', label: 'Atrasado', count: 0 },
-        { key: 'CRITICAL', label: 'Crítico', count: 0 },
+        { key: 'LATE', label: 'Após o planejado, até o limite', count: 0 },
+        { key: 'CRITICAL', label: 'Após o limite (crítico)', count: 0 },
         { key: 'PENDING', label: 'Sem entrega', count: 0 },
     ];
+    const today = businessToday();
     for (const p of processes) {
-        const score = p.score;
-        const index = p.deliveryDate == null || typeof score !== 'number'
-            ? (p.status === ProcessStatus.CRITICAL ? 4 : 5)
-            : score >= 100 ? 0 : score >= 75 ? 1 : score >= 50 ? 2 : score >= 25 ? 3 : 4;
+        const planned = businessToday(p.plannedDate), limit = businessToday(p.limitDate);
+        const delivered = p.deliveryDate ? businessToday(p.deliveryDate) : null;
+        const index = delivered == null ? (today > limit ? 3 : 4)
+            : delivered < planned ? 0 : delivered === planned ? 1 : delivered <= limit ? 2 : 3;
         bands[index].count++;
     }
 

@@ -4,7 +4,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import { Filter, Search, X } from 'lucide-react';
 import { reportsApi, companiesApi } from '../api';
 import { useAuth } from '../contexts';
-import { UserRole } from '../types';
+import { getAccessibleSectors } from '../utils/companyAccess';
 import type { ProcessPerformanceRow } from '../types/processPerformance';
 import ReportActions from '../components/ReportActions';
 import { reportFilename } from '../utils/reportDocument';
@@ -34,16 +34,13 @@ export default function ProcessPerformance() {
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const detailRef = useRef<HTMLDivElement>(null);
 
-    const isStrictManagerOrOperator = !user?.roles.includes(UserRole.MASTER);
-    const allowedSectors = [...new Set([...(user?.sectors || []), ...(user?.sector ? [user.sector] : [])])];
 
     const { data: company } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!.toString()),
         enabled: !!user?.activeCompanyId,
     });
-    const sectorOptions = isStrictManagerOrOperator && allowedSectors.length
-        ? allowedSectors : (company?.sectors || []).map(s => s.name);
+    const sectorOptions = getAccessibleSectors(user, company).map(s => s.name);
 
     const { data, isLoading, isFetching, isError } = useQuery({
         queryKey: ['process-performance', user?.activeCompanyId, from, to, selectedSector],

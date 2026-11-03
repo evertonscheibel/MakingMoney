@@ -25,7 +25,7 @@ export function buildCurvePDF(data: CurveReportData, meta: { companyName: string
     if (data.deliveryBreakdown) {
         report.heading('02  Entregas por status');
         report.table(['Status da entrega', 'Processos'], data.deliveryBreakdown.map(b => [b.label, b.count]), { right: [1] });
-        report.text('Cada processo do mês aparece uma vez, pela pontuação da entrega em relação à data planejada e ao limite.');
+        report.text('Cada processo do mês aparece uma vez, pela data da entrega em relação à data planejada e ao limite.');
     }
     report.heading('03  Evolução das entregas');
     report.lineChart(data.series);

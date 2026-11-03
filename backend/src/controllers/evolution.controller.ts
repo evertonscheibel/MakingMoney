@@ -83,8 +83,11 @@ export const getPerformanceEvolution = asyncHandler(async (req: Request, res: Re
     const provenRoots = new Set(documents.filter(p => p.lineageId).map(p => String(p.lineageId)));
     let rows: Row[] = documents.map(p => ({ ...p, month: cycleMap.get(String(p.cycleId))!.month,
         lineageKey: p.lineageId ? String(p.lineageId) : provenRoots.has(String(p._id)) ? String(p._id) : null,
-        effectiveResponsibleId: p.score != null && p.evaluatedResponsibleUserId != null ? String(p.evaluatedResponsibleUserId) : p.responsibleUserId ? String(p.responsibleUserId) : null,
-        attributionQuality: p.score != null && p.evaluatedResponsibleUserId != null ? 'AT_DELIVERY' : 'DOCUMENT',
+        // A rule version marks attribution recorded at delivery, including an explicit "no responsible" (null).
+        effectiveResponsibleId: p.score != null && (p.evaluationRuleVersion != null || p.evaluatedResponsibleUserId != null)
+            ? (p.evaluatedResponsibleUserId ? String(p.evaluatedResponsibleUserId) : null)
+            : p.responsibleUserId ? String(p.responsibleUserId) : null,
+        attributionQuality: p.score != null && (p.evaluationRuleVersion != null || p.evaluatedResponsibleUserId != null) ? 'AT_DELIVERY' : 'DOCUMENT',
     }));
     if (req.query.userId) rows = rows.filter(p => p.effectiveResponsibleId === req.query.userId);
     if (req.query.processId) {
