@@ -1,12 +1,15 @@
 import type { Process, SummaryKPIs } from '../types';
 import { formatBusinessDate } from './businessDate';
 import { createReportDocument, reportPeriod, formatReportNumber } from './reportDocument';
+import { formatPerformanceAverage, performanceSampleLabel, deliveryRatioLabel, coverageLabel } from './performance';
+import { assessmentLabels, processAssessmentState } from './assessment';
 
 export interface OperationalReportData {
     companyName: string;
     cycle: string;
     sector?: string;
     status?: string;
+    assessment?: string;
     issuedBy?: string;
     generatedAt?: Date;
     summary: Pick<SummaryKPIs, 'kpis'>;
@@ -19,7 +22,7 @@ export function buildDetailedReportPDF(data: OperationalReportData) {
     const report = createReportDocument({
         title: 'Relatório operacional', companyName: data.companyName,
         period: reportPeriod(data.cycle), scope: data.sector || 'Todos os setores autorizados',
-        filters: `Status: ${data.status || 'Todos'} | Processos conforme permissão do usuário`,
+        filters: `Status: ${data.status || 'Todos'} | Avaliação: ${data.assessment || 'Todas'} | Processos conforme permissão do usuário`,
         issuedBy: data.issuedBy, generatedAt: data.generatedAt,
     });
     const entries = Object.entries(data.extract.bySector).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
@@ -27,11 +30,13 @@ export function buildDetailedReportPDF(data: OperationalReportData) {
     report.heading('01  Resumo do período');
     report.metrics([
         { label: 'PROCESSOS', value: String(total) },
-        { label: 'PONTUAÇÃO MÉDIA', value: formatReportNumber(data.summary.kpis.avgScore) },
+        { label: 'PONTUAÇÃO MÉDIA', value: formatPerformanceAverage(data.summary.kpis.performanceAverage) },
         { label: 'NO PRAZO', value: `${formatReportNumber(data.summary.kpis.onTimePct)}%` },
         { label: 'ATRASADOS', value: String(data.summary.kpis.lateCount) },
         { label: 'CRÍTICOS', value: String(data.summary.kpis.criticalCount) },
     ]);
+    report.text(`${performanceSampleLabel(data.summary.kpis)}. ${deliveryRatioLabel(data.summary.kpis)}.`);
+    report.text(coverageLabel(data.summary.kpis));
     report.text('Os indicadores correspondem aos filtros selecionados. Pontuação média considera os processos avaliados. Datas operacionais representam o dia de calendário.');
     report.heading('02  Distribuição por setor');
     report.table(['Setor', 'Processos', 'Entregues', 'Pendentes', 'No prazo', 'Atrasados', 'Críticos'], entries.map(([sector, rows]) => [
@@ -45,7 +50,7 @@ export function buildDetailedReportPDF(data: OperationalReportData) {
         const ordered = [...rows].sort((a, b) => a.plannedDate.localeCompare(b.plannedDate) || a.code.localeCompare(b.code, 'pt-BR', { numeric: true }));
         report.table(['Código', 'Processo', 'Responsável', 'Planejado', 'Limite', 'Entrega', 'Status', 'Pont.'], ordered.map(p => [
             p.code, p.title, typeof p.responsibleUserId === 'object' && p.responsibleUserId ? p.responsibleUserId.name : p.owner || '-',
-            date(p.plannedDate), date(p.limitDate), date(p.deliveryDate), labels[p.status] || p.status, p.score ?? '-',
+            date(p.plannedDate), date(p.limitDate), date(p.deliveryDate), `${labels[p.status] || p.status}\n${assessmentLabels[processAssessmentState(p)]}`, p.score ?? '-',
         ]), { widths: { 0: 17, 2: 37, 3: 23, 4: 23, 5: 23, 6: 23, 7: 13 }, right: [7] });
     });
     return report.finish();

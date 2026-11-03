@@ -5,6 +5,14 @@ export interface IProcessDocument extends Omit<IProcess, '_id'>, Document { }
 
 const processSchema = new Schema<IProcessDocument>(
     {
+        lineageId: { type: Schema.Types.ObjectId },
+        sourceProcessId: { type: Schema.Types.ObjectId, ref: 'Process' },
+        assessmentRequired: { type: Boolean },
+        nonApplicableReason: { type: String, maxlength: 1000 },
+        evaluatedResponsibleUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+        evaluationRuleVersion: { type: Number },
+        responsibilityChangedAt: { type: Date },
+        category: { type: String, trim: true, maxlength: 100 },
         companyId: {
             type: Schema.Types.ObjectId,
             ref: 'Company',
@@ -135,6 +143,11 @@ const processSchema = new Schema<IProcessDocument>(
 );
 
 // Indexes
+processSchema.index({ companyId: 1, lineageId: 1, cycleId: 1 });
+processSchema.pre('validate', function (next) {
+    if (this.isNew && !this.lineageId) this.lineageId = this._id as any;
+    next();
+});
 processSchema.index({ companyId: 1, cycleId: 1 });
 // Global unique index for Code per Company AND SECTOR AND CYCLE
 processSchema.index({ companyId: 1, cycleId: 1, sector: 1, code: 1 }, { unique: true });

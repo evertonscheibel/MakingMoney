@@ -11,6 +11,11 @@ import {
     Tooltip,
     ResponsiveContainer,
     Legend,
+    BarChart,
+    Bar,
+    Cell,
+    PieChart,
+    Pie,
 } from 'recharts';
 import {
     TrendingUp,
@@ -25,6 +30,12 @@ import ReportActions from '../components/ReportActions';
 import { buildCurvePDF } from '../utils/curvePdfExport';
 import { reportFilename } from '../utils/reportDocument';
 import { UserRole } from '../types';
+import PerformanceDetails from '../components/PerformanceDetails';
+import { formatPerformanceAverage } from '../utils/performance';
+
+const DELIVERY_COLORS: Record<string, string> = {
+    EARLY: '#2563eb', ON_PLANNED: '#3b82f6', WITHIN_LIMIT: '#eab308', LATE: '#f97316', CRITICAL: '#ef4444', PENDING: '#9ca3af',
+};
 
 export default function ProcessCurveReport() {
     const { user } = useAuth();
@@ -34,6 +45,7 @@ export default function ProcessCurveReport() {
     });
     const [selectedSector, setSelectedSector] = useState<string>('');
     const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [breakdownChart, setBreakdownChart] = useState<'bar' | 'pie'>('bar');
 
     const isOperator = user?.roles.includes(UserRole.OPERATOR) && !user?.roles.includes(UserRole.MASTER) && !user?.roles.includes(UserRole.MANAGER);
     const isStrictManager = user?.roles.includes(UserRole.MANAGER) && !user?.roles.includes(UserRole.MASTER);
@@ -127,7 +139,7 @@ export default function ProcessCurveReport() {
         },
         {
             name: 'Pontuação Média',
-            value: curveData?.kpis.avgScore || 0,
+            value: formatPerformanceAverage(curveData?.kpis.performanceAverage),
             icon: TrendingUp,
             color: 'text-warning-600',
             bgColor: 'bg-warning-50',
@@ -139,7 +151,7 @@ export default function ProcessCurveReport() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Relatório Curva de Processo</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Evolução do planejado vs realizado e indicadores de atraso.</p>
+                    <p className="text-gray-500 dark:text-gray-400">Entregas por status e indicadores de atraso no mês.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -214,6 +226,7 @@ export default function ProcessCurveReport() {
                             <div>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">{stat.name}</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                {stat.name === 'Pontuação Média' && <PerformanceDetails indicators={curveData?.kpis} />}
                             </div>
                         </div>
                     </div>
@@ -222,25 +235,43 @@ export default function ProcessCurveReport() {
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Delivery Curve Chart */}
+                {/* Delivery outcome by status (not cumulative) */}
                 <div className="card">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Curva de Entregas (Planejado vs Realizado)</h2>
+                    <div className="flex items-center justify-between gap-2 mb-6">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Entregas por Status</h2>
+                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
+                            {(['bar', 'pie'] as const).map(type => (
+                                <button key={type} type="button" onClick={() => setBreakdownChart(type)}
+                                    className={`px-3 py-1 ${breakdownChart === type ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                                    {type === 'bar' ? 'Barras' : 'Pizza'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div className="h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={curveData?.series}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="day" />
-                                <YAxis />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                    labelFormatter={(label) => `Dia ${label}`}
-                                />
-                                <Legend />
-                                <Line type="monotone" dataKey="planned" name="Planejado" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                                <Line type="monotone" dataKey="realized" name="Realizado" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                            </LineChart>
+                            {breakdownChart === 'bar' ? (
+                                <BarChart data={curveData?.deliveryBreakdown} layout="vertical" margin={{ left: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                    <XAxis type="number" allowDecimals={false} />
+                                    <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 12 }} />
+                                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                                    <Bar dataKey="count" name="Processos" radius={[0, 4, 4, 0]}>
+                                        {curveData?.deliveryBreakdown?.map(item => <Cell key={item.key} fill={DELIVERY_COLORS[item.key]} />)}
+                                    </Bar>
+                                </BarChart>
+                            ) : (
+                                <PieChart>
+                                    <Pie data={curveData?.deliveryBreakdown?.filter(item => item.count > 0)} dataKey="count" nameKey="label" outerRadius={120} label>
+                                        {curveData?.deliveryBreakdown?.filter(item => item.count > 0).map(item => <Cell key={item.key} fill={DELIVERY_COLORS[item.key]} />)}
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend />
+                                </PieChart>
+                            )}
                         </ResponsiveContainer>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">Cada processo do mês aparece uma vez, pela pontuação da entrega em relação à data planejada e ao limite.</p>
                 </div>
 
                 {/* Delay and Critical Chart */}

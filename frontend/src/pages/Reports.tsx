@@ -10,6 +10,11 @@ import { buildDetailedReportPDF } from '../utils/reportsPdfExport';
 import ReportActions from '../components/ReportActions';
 import { reportFilename } from '../utils/reportDocument';
 import ProcessScheduleCalendar from '../components/ProcessScheduleCalendar';
+import PerformanceDetails from '../components/PerformanceDetails';
+import { formatPerformanceAverage } from '../utils/performance';
+import PerformanceEvolution from '../components/PerformanceEvolution';
+import AssessmentBadge from '../components/AssessmentBadge';
+import { assessmentLabels } from '../utils/assessment';
 
 const STATUS_LABELS = {
     PENDING: 'Pendente',
@@ -23,6 +28,7 @@ export default function Reports() {
     const [selectedSector, setSelectedSector] = useState<string>('');
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [selectedAssessment, setSelectedAssessment] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
     const { data: company } = useQuery({
@@ -38,15 +44,15 @@ export default function Reports() {
     });
 
     const { data: summary, isFetching: summaryFetching, isError: summaryError } = useQuery({
-        queryKey: ['summary', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus],
-        queryFn: () => reportsApi.getSummary(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined),
+        queryKey: ['summary', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus, selectedAssessment],
+        queryFn: () => reportsApi.getSummary(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined, selectedAssessment || undefined),
         enabled: !!user?.activeCompanyId,
     });
 
 
     const { data: extract, isFetching: extractFetching, isError: extractError } = useQuery({
-        queryKey: ['extract', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus],
-        queryFn: () => reportsApi.getExtract(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined),
+        queryKey: ['extract', user?.activeCompanyId, selectedCycle, selectedSector, selectedStatus, selectedAssessment],
+        queryFn: () => reportsApi.getExtract(undefined, selectedSector || undefined, selectedCycle || undefined, selectedStatus || undefined, selectedAssessment || undefined),
         enabled: !!user?.activeCompanyId,
     });
 
@@ -71,6 +77,7 @@ export default function Reports() {
             cycle: documentPeriod,
             sector: selectedSector,
             status: selectedStatus ? STATUS_LABELS[selectedStatus as keyof typeof STATUS_LABELS] : undefined,
+            assessment: selectedAssessment ? assessmentLabels[selectedAssessment as keyof typeof assessmentLabels] : undefined,
             issuedBy: user.name,
             summary, extract,
         });
@@ -128,6 +135,9 @@ export default function Reports() {
             {/* Filters */}
             <div className="card bg-gray-50/50">
                 <div className="flex flex-wrap items-end gap-4">
+                    <label className="text-xs text-gray-500">Avaliação<select className="input text-sm" aria-label="Avaliação do relatório" value={selectedAssessment} onChange={e => setSelectedAssessment(e.target.value)}>
+                        <option value="">Todas as avaliações</option>{Object.entries(assessmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                    </select></label>
                     <div className="w-full sm:w-[calc(50%-1rem)] md:flex-1">
                         <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">
                             Setor
@@ -183,6 +193,7 @@ export default function Reports() {
                                 setSelectedSector('');
                                 setSelectedCycle('');
                                 setSelectedStatus('');
+                                setSelectedAssessment('');
                             }}
                         >
                             Limpar Filtros
@@ -195,9 +206,10 @@ export default function Reports() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="card text-center">
                     <p className="text-3xl font-bold text-primary-600">
-                        {summary?.kpis.avgScore?.toFixed(1) || 0}
+                        {formatPerformanceAverage(summary?.kpis.performanceAverage)}
                     </p>
                     <p className="text-sm text-gray-500">Pontuação Média</p>
+                    <PerformanceDetails indicators={summary?.kpis} />
                 </div>
                 <div className="card text-center">
                     <p className="text-3xl font-bold text-success-600">
@@ -220,6 +232,7 @@ export default function Reports() {
             </div>
 
 
+            <PerformanceEvolution company={company} sector={selectedSector} />
             {/* Report visualization */}
             {viewMode === 'calendar' ? (
                 <ProcessScheduleCalendar processes={filteredProcesses} period={calendarPeriod} editable={!cycles?.some(c => c.month === calendarPeriod && (!selectedSector || c.sector === selectedSector) && c.status === 'CLOSED')} />
@@ -253,7 +266,7 @@ export default function Reports() {
                                                 <th>Limite</th>
                                                 <th>Responsáveis</th>
                                                 <th>Entrega</th>
-                                                <th>Pontuação</th>
+                                                <th>Pontuação / avaliação</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -279,6 +292,7 @@ export default function Reports() {
                                                     </td>
                                                     <td className="font-semibold">
                                                         {p.score !== null ? p.score : '-'}
+                                                        <div className="mt-1"><AssessmentBadge process={p} /></div>
                                                     </td>
                                                 </tr>
                                             ))}

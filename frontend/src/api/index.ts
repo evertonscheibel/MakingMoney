@@ -1,3 +1,4 @@
+import type { ProcessPerformanceReport } from '../types/processPerformance';
 import { api, apiCall } from './client';
 import type {
     User,
@@ -18,6 +19,7 @@ import type {
     PaginatedResponse,
     RegisterForm,
     BonusReportResponse,
+    PerformanceIndicators,
 } from '../types';
 
 // ==================== AUTH ====================
@@ -158,6 +160,8 @@ export const cyclesApi = {
 
 export const processesApi = {
     list: async (params?: {
+        active?: boolean;
+        assessmentState?: string;
         cycleId?: string;
         sector?: string;
         status?: string;
@@ -240,8 +244,8 @@ export const reportsApi = {
         const response = await api.post('/reports/email/send', data, { headers: { 'Content-Type': 'multipart/form-data' } });
         return response.data.data;
     },
-    getSummary: async (cycleId?: string, sector?: string, period?: string, status?: string): Promise<SummaryKPIs> => {
-        return apiCall<SummaryKPIs>('get', '/reports/summary', { cycleId, sector, period, status });
+    getSummary: async (cycleId?: string, sector?: string, period?: string, status?: string, assessmentState?: string): Promise<SummaryKPIs> => {
+        return apiCall<SummaryKPIs>('get', '/reports/summary', { cycleId, sector, period, status, assessmentState });
     },
 
     getSectorRanking: async (cycleId?: string, sector?: string, period?: string, status?: string): Promise<{ cycleMonth: string; ranking: SectorRanking[] }> => {
@@ -256,13 +260,13 @@ export const reportsApi = {
         return apiCall('get', '/reports/status-distribution', { cycleId, sector, period, status });
     },
 
-    getExtract: async (cycleId?: string, sector?: string, period?: string, status?: string): Promise<{
+    getExtract: async (cycleId?: string, sector?: string, period?: string, status?: string, assessmentState?: string): Promise<{
         cycle: { id: string; month: string; status: string };
         totalProcesses: number;
         bySector: Record<string, Process[]>;
         generatedAt: string;
     }> => {
-        return apiCall('get', '/reports/extract', { cycleId, sector, period, status });
+        return apiCall('get', '/reports/extract', { cycleId, sector, period, status, assessmentState });
     },
 
     getHistory: async (): Promise<HistoryPoint[]> => {
@@ -271,10 +275,15 @@ export const reportsApi = {
 
     getProcessCurve: async (params: { period: string; sector?: string; userId?: string }): Promise<{
         series: any[];
-        kpis: any;
+        deliveryBreakdown: { key: string; label: string; count: number }[];
+        kpis: PerformanceIndicators & { totalPlanned: number; onTimePct: number; avgScore: number };
         criticalItems: any[];
     }> => {
         return apiCall('get', '/reports/process-curve', params);
+    },
+
+    getProcessPerformance: async (params: { from: string; to: string; sector?: string; code?: string }): Promise<ProcessPerformanceReport> => {
+        return apiCall<ProcessPerformanceReport>('get', '/reports/process-performance', params);
     },
 };
 
@@ -446,11 +455,11 @@ export const logsApi = {
 // ==================== METRICS ====================
 
 export const metricsApi = {
-    getMyMetrics: async (period?: string, cycleId?: string): Promise<{ averageScore: number; count: number }> => {
+    getMyMetrics: async (period?: string, cycleId?: string): Promise<PerformanceIndicators & { averageScore: number; count: number }> => {
         return apiCall('get', '/metrics/me', { period, cycleId });
     },
 
-    getTeamMetrics: async (period?: string, cycleId?: string): Promise<{ averageScore: number; count: number }> => {
+    getTeamMetrics: async (period?: string, cycleId?: string): Promise<PerformanceIndicators & { averageScore: number; count: number }> => {
         return apiCall('get', '/metrics/team', { period, cycleId });
     },
 };

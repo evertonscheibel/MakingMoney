@@ -23,6 +23,9 @@ import {
     EyeOff,
 } from 'lucide-react';
 import CloseMonthModal from '../components/CloseMonthModal';
+import AssessmentBadge from '../components/AssessmentBadge';
+import ProcessAssessmentAction from '../components/ProcessAssessmentAction';
+import { assessmentLabels } from '../utils/assessment';
 
 export default function ProcessList() {
     const { user, refreshUser } = useAuth();
@@ -49,6 +52,8 @@ export default function ProcessList() {
     const [sectorFilter, setSectorFilter] = useState('');
     const [searchParams] = useSearchParams();
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+    const [assessmentFilter, setAssessmentFilter] = useState('');
+    const [activityFilter, setActivityFilter] = useState('');
     const [responsibleFilter, setResponsibleFilter] = useState('');
     const [deliveryMode, setDeliveryMode] = useState<'ALL' | 'DELIVERED_FIRST' | 'NOT_DELIVERED_FIRST' | 'DELIVERED_ONLY' | 'NOT_DELIVERED_ONLY'>('ALL');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -125,11 +130,13 @@ export default function ProcessList() {
     };
 
     const { data: processesData, isLoading } = useQuery({
-        queryKey: ['processes', { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter, deliveryMode, sortOrder }],
+        queryKey: ['processes', user?.activeCompanyId, { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter, deliveryMode, sortOrder, assessmentFilter, activityFilter }],
         queryFn: () => processesApi.list({
             search: search || undefined,
             sector: sectorFilter || undefined,
             status: statusFilter || undefined,
+            assessmentState: assessmentFilter || undefined,
+            active: activityFilter ? activityFilter === 'true' : undefined,
             responsibleUserId: responsibleFilter || undefined,
             deliveryMode,
             sortBy: 'plannedDate',
@@ -275,10 +282,11 @@ export default function ProcessList() {
     });
 
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-    const activeFilterCount = [sectorFilter, statusFilter, responsibleFilter, deliveryMode !== 'ALL', sortOrder !== 'asc'].filter(Boolean).length;
+    const activeFilterCount = [sectorFilter, statusFilter, responsibleFilter, assessmentFilter, activityFilter, deliveryMode !== 'ALL', sortOrder !== 'asc'].filter(Boolean).length;
 
     const renderActions = (process: Process) => (
                                         <div className="flex items-center justify-center gap-1 flex-wrap md:grid md:grid-cols-3 process-actions">
+                                            {!isOperator && <ProcessAssessmentAction process={process} />}
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
@@ -471,6 +479,7 @@ export default function ProcessList() {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const data: ProcessForm = {
+            category: (formData.get('category') as string) || '',
             code: (formData.get('code') as string) || undefined,
             title: formData.get('title') as string,
             sector: (formData.get('sector') as string) || selectedSector || '',
@@ -613,6 +622,12 @@ export default function ProcessList() {
                             <span className="badge-pending">{activeFilterCount} {activeFilterCount === 1 ? 'ativo' : 'ativos'}</span>
                         </button>
                         <div id="process-advanced-filters" className={`${showAdvancedFilters ? 'grid' : 'hidden'} md:grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5`}>
+                            <select className="input" aria-label="Filtrar avaliação" value={assessmentFilter} onChange={e => setAssessmentFilter(e.target.value)}>
+                                <option value="">Todas as avaliações</option>{Object.entries(assessmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                            </select>
+                            {isMasterUser && <select className="input" aria-label="Filtrar atividade" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}>
+                                <option value="">Ativos e inativos</option><option value="true">Somente ativos</option><option value="false">Somente inativos</option>
+                            </select>}
                             <select
                                 aria-label="Filtrar por setor"
                                 value={sectorFilter}
@@ -708,7 +723,7 @@ export default function ProcessList() {
                             <article key={process._id} className={`p-4 space-y-3 ${process.isActive === false ? "opacity-50" : ""}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0"><p className="text-xs text-gray-500 mb-1">{process.code} · {process.sector}</p><h2 className="font-semibold text-gray-900 dark:text-white break-words">{process.title}</h2></div>
-                                    {getStatusBadge(process)}
+                                    <div className="flex flex-wrap gap-1">{getStatusBadge(process)}<AssessmentBadge process={process} /></div>
                                 </div>
                                 <dl className="grid grid-cols-2 gap-3 text-sm">
                                     <div><dt className="section-label">Prazo limite</dt><dd className="mt-1">{new Date(process.limitDate).toLocaleDateString("pt-BR", {timeZone: "UTC"})}</dd></div>
@@ -748,7 +763,7 @@ export default function ProcessList() {
                                     </td>
                                     <td className="text-center">
                                         <div className="flex justify-center">
-                                            {getStatusBadge(process)}
+                                            <div className="flex flex-col gap-1 items-start">{getStatusBadge(process)}<AssessmentBadge process={process} /></div>
                                         </div>
                                     </td>
                                     <td className="text-sm text-center hidden lg:table-cell">
@@ -922,6 +937,7 @@ export default function ProcessList() {
                                         required
                                     />
                                 </div>
+                                <label className="block text-sm">Categoria (opcional)<input name="category" className="input mt-1" maxLength={100} defaultValue={selectedProcess?.category || ''} /></label>
                                 <div>
                                     <label className="label">Responsável</label>
                                     <input

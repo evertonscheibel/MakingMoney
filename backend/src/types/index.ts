@@ -129,6 +129,20 @@ export interface ICompany {
 }
 
 export interface ICycleKPIs {
+    assessmentVersion?: 1;
+    eligibleCount?: number;
+    assessedEligibleCount?: number;
+    pendingAssessmentCount?: number;
+    missingAssessmentCount?: number;
+    notApplicableCount?: number;
+    coveragePct?: number | null;
+    aggregationVersion?: 1;
+    scoreSum?: number;
+    validScoreCount?: number;
+    performanceAverage?: number | null;
+    activeProcessCount?: number;
+    deliveredCount?: number;
+    deliveryRatePct?: number | null;
     avgScore: number;
     onTimePct: number;
     criticalCount: number;
@@ -148,6 +162,14 @@ export interface ICycle {
 }
 
 export interface IProcess {
+    lineageId?: Types.ObjectId;
+    sourceProcessId?: Types.ObjectId | null;
+    assessmentRequired?: boolean;
+    nonApplicableReason?: string | null;
+    evaluatedResponsibleUserId?: Types.ObjectId | null;
+    evaluationRuleVersion?: number | null;
+    responsibilityChangedAt?: Date;
+    category?: string;
     _id: Types.ObjectId;
     companyId: Types.ObjectId;
     cycleId: Types.ObjectId;

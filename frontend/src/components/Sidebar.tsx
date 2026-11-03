@@ -4,6 +4,7 @@ import {
     LayoutDashboard,
     ClipboardList,
     BarChart3,
+    TrendingUp,
     Settings,
     Mail,
     X,
@@ -42,6 +43,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 { id: 'dashboard', name: 'Dashboard', href: '/', icon: LayoutDashboard },
                 { id: 'processes', name: 'Processos', href: '/processes', icon: ClipboardList },
                 { id: 'reports', name: 'Relatórios', href: '/reports', icon: BarChart3 },
+                { id: 'process-performance', name: 'Desempenho de Processos', href: '/process-performance', icon: TrendingUp },
                 { id: 'process-curve', name: 'Curva de Processo', href: '/process-curve', icon: BarChart3 },
                 { id: 'bonus-report', name: 'Bonificações', href: '/bonus-report', icon: Award },
                 { id: 'cycle-history', name: 'Histórico de Ciclos', href: '/cycles/history', icon: History },
@@ -92,16 +94,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       `}
         >
             {/* Header */}
-            <div className="relative flex-none h-[9.25rem] overflow-hidden bg-slate-950 border-b border-slate-800">
+            <div className="relative flex-none h-[6.25rem] overflow-hidden bg-slate-950 border-b border-slate-800">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(22,163,74,0.24),transparent_44%)]" />
                 <div className="relative flex h-full items-center justify-between px-4">
-                    <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                        <div className="h-[4.5rem] w-[10rem] flex-none overflow-hidden rounded-2xl border border-white/10 bg-black shadow-lg shadow-black/30">
-                            <img src={chronosLogo} alt="Logo Making Money — Método Chronos" className="h-full w-full object-contain" />
+                    <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                        <div className="h-[2.5rem] w-[6rem] flex-none overflow-hidden rounded-2xl border border-white/10 bg-black shadow-lg shadow-black/30">
+                            <img src={chronosLogo} alt="Método Chronos — Making Money Method" className="h-full w-full object-contain" />
                         </div>
                         <div className="min-w-0 w-full text-center">
-                            <p className="text-base font-bold leading-tight text-white">Making Money</p>
-                            <p className="mt-1 text-sm font-semibold leading-tight text-primary-300">Método Chronos</p>
+                            <p className="text-sm font-bold uppercase tracking-[0.18em] leading-tight text-primary-300">Método Chronos</p>
+                            <p className="mt-0.5 text-xs font-medium leading-tight text-sky-300">Making Money Method</p>
                         </div>
                     </div>
                     <button
@@ -218,9 +220,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                     </div>
                 </div>
-                <div className="mt-2.5 rounded-xl border border-slate-800 bg-slate-950 p-2">
-                    <p className="mb-1.5 text-center text-[9px] text-slate-400 font-semibold tracking-[0.16em] uppercase">Desenvolvido por Bridge Tecnologia</p>
-                    <div className="w-full">
+                <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
+                    <p className="mb-1 text-center text-[8px] text-slate-400 font-semibold tracking-[0.08em] uppercase">Desenvolvido por Bridge Tecnologia</p>
+                    <div className="mx-auto w-[7rem]">
                         <img src={logo} alt="Bridge Tecnologia — Padronização, Automação, Indicadores acionáveis, Execução simples, Auditável e Escalável" className="block h-auto w-full rounded-md object-contain" />
                     </div>
                 </div>

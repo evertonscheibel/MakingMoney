@@ -8,6 +8,9 @@ import { AuditAction, EntityType, CycleStatus, ProcessStatus, UserRole, Delivery
 import { Types } from 'mongoose';
 import { assertSectorAccess } from '../utils/processAccess';
 import { getCompanyRole } from '../utils/permissions';
+import { calculatePerformance } from '../utils/performance';
+import { assessmentIndicators } from '../utils/assessment';
+import { cloneProcessMetadata } from '../utils/cloneProcess';
 import { calculatePercentage, calculateAverage, getEffectiveSectors, isSectorManager } from '../utils';
 
 // Validation rules
@@ -374,9 +377,7 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
     // Calculate KPIs
     const activeProcessesForKpi = processes.filter((p) => p.isActive !== false);
 
-    const scores = activeProcessesForKpi
-        .filter((p) => p.score !== null)
-        .map((p) => p.score!);
+    const performance = calculatePerformance(activeProcessesForKpi);
 
     const onTimeCount = activeProcessesForKpi.filter(
         (p) => p.status === ProcessStatus.ON_TIME
@@ -386,7 +387,7 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
         (p) => p.status === ProcessStatus.CRITICAL
     ).length;
 
-    const avgScore = calculateAverage(scores);
+    const avgScore = performance.performanceAverage ?? 0;
     const onTimePct = calculatePercentage(onTimeCount, activeProcessesForKpi.length);
 
     // Calculate average deviation
@@ -404,6 +405,8 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
     cycle.status = CycleStatus.CLOSED;
     cycle.closedAt = new Date();
     cycle.kpis = {
+        ...performance,
+        ...assessmentIndicators(activeProcessesForKpi),
         avgScore,
         onTimePct,
         criticalCount,
@@ -460,6 +463,7 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
 
             return {
                 ...pObj,
+                ...cloneProcessMetadata(p),
                 cycleId: nextCycle!._id,
                 plannedDate: newPlannedDate || p.plannedDate,
                 limitDate: newLimitDate || p.limitDate,
@@ -468,6 +472,8 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
                 deliveryEvidence: null,
                 deliveryStatus: DeliveryStatus.NOT_DELIVERED,
                 score: null,
+                evaluatedResponsibleUserId: null,
+                evaluationRuleVersion: null,
                 status: ProcessStatus.PENDING,
                 revertReason: null,
                 revertedBy: null,
@@ -527,7 +533,8 @@ export const closeCycle = asyncHandler(async (req: Request, res: Response): Prom
                     
                     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                         <p><strong>Total de Processos:</strong> ${processes.length}</p>
-                        <p><strong>Pontuação Média:</strong> <span style="font-weight: bold; color: ${avgScore >= 75 ? '#16a34a' : avgScore >= 50 ? '#eab308' : '#dc2626'};">${avgScore.toFixed(1)}</span></p>
+                        <p><strong>Pontuação Média:</strong> <span style="font-weight: bold;">${performance.performanceAverage === null ? 'Sem dados' : avgScore.toFixed(1)}</span> (n=${performance.validScoreCount}${performance.validScoreCount === 1 ? ', amostra reduzida' : ''})</p>
+                        <p><strong>Entregas sobre processos ativos:</strong> ${performance.deliveredCount}/${performance.activeProcessCount} (${performance.deliveryRatePct === null ? 'Sem dados' : `${performance.deliveryRatePct}%`})</p>
                         <p><strong>Entregas no Prazo:</strong> ${onTimePct.toFixed(1)}%</p>
                         <p><strong>Processos Críticos:</strong> ${criticalCount}</p>
                         <p><strong>Desvio Médio:</strong> ${avgDeviationDays.toFixed(1)} dias</p>
@@ -663,6 +670,8 @@ export const resetCycle = asyncHandler(async (req: Request, res: Response): Prom
                 deliverySource: null,
                 deliveryEvidence: null,
                 score: null,
+                evaluatedResponsibleUserId: null,
+                evaluationRuleVersion: null,
                 emailSentAt: null,
                 deliveryEmailBatchId: null,
                 revertReason: null,

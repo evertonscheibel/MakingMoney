@@ -5,6 +5,21 @@ export interface ICycleDocument extends Omit<ICycle, '_id'>, Document { }
 
 const kpisSchema = new Schema<ICycleKPIs>(
     {
+        // No defaults: loading a legacy snapshot must not manufacture sample metadata.
+        aggregationVersion: { type: Number, enum: [1] },
+        scoreSum: { type: Number },
+        validScoreCount: { type: Number },
+        performanceAverage: { type: Number },
+        activeProcessCount: { type: Number },
+        deliveredCount: { type: Number },
+        deliveryRatePct: { type: Number },
+        assessmentVersion: { type: Number, enum: [1] },
+        eligibleCount: { type: Number },
+        assessedEligibleCount: { type: Number },
+        pendingAssessmentCount: { type: Number },
+        missingAssessmentCount: { type: Number },
+        notApplicableCount: { type: Number },
+        coveragePct: { type: Number },
         avgScore: { type: Number, default: 0 },
         onTimePct: { type: Number, default: 0 },
         criticalCount: { type: Number, default: 0 },
