@@ -222,9 +222,12 @@ export default function ProcessList() {
     const setActiveMutation = useMutation({
         mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
             processesApi.setActive(id, isActive, reason),
-        onSuccess: () => {
+        onSuccess: (_data, { isActive }) => {
             setReasonAction(null);
             setActionReason('');
+            setNotice(isActive
+                ? 'Processo reativado. Ele volta a aparecer para todos os usuários e a receber entregas.'
+                : 'Processo inativado. Para você (Master) ele continua na lista, esmaecido e com o selo "Inativo"; para os demais usuários ele deixa de aparecer. Use o filtro "Somente inativos" para encontrá-lo e o botão "Ativar" para reativá-lo.');
             ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
         },
         onError: (error: any) => {
@@ -374,18 +377,20 @@ export default function ProcessList() {
                                                         setActionReason('');
                                                         setReasonAction({process, kind: 'active'});
                                                     }}
-                                                    className={`p-1 rounded-md transition-colors ${
+                                                    className={`md:col-span-3 md:order-last inline-flex items-center justify-center gap-1 px-1.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                                                         process.isActive === false
                                                             ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                                                             : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
                                                     }`}
-                                                    title={process.isActive === false ? 'Ativar Processo' : 'Inativar Processo'}
+                                                    title={process.isActive === false ? 'Ativar processo' : 'Inativar processo'}
+                                                    aria-label={process.isActive === false ? `Ativar processo ${process.code}` : `Inativar processo ${process.code}`}
                                                 >
                                                     {process.isActive === false ? (
                                                         <Eye className="w-4 h-4" />
                                                     ) : (
                                                         <EyeOff className="w-4 h-4" />
                                                     )}
+                                                    <span>{process.isActive === false ? 'Ativar' : 'Inativar'}</span>
                                                 </button>
                                             )}
                                             {!isOperator && (
@@ -551,7 +556,14 @@ export default function ProcessList() {
                         if (kind === 'revert') revertDeliveryMutation.mutate({id: process._id, reason: actionReason.trim()});
                         else setActiveMutation.mutate({id: process._id, isActive: process.isActive === false, reason: actionReason.trim()});
                     }}>
-                        <h2 className="text-lg font-semibold">{reasonAction.kind === 'revert' ? 'Reverter entrega' : 'Alterar atividade do processo'}</h2>
+                        <h2 className="text-lg font-semibold">{reasonAction.kind === 'revert' ? 'Reverter entrega' : reasonAction.process.isActive === false ? `Ativar processo ${reasonAction.process.code}` : `Inativar processo ${reasonAction.process.code}`}</h2>
+                        {reasonAction.kind === 'active' && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {reasonAction.process.isActive === false
+                                    ? 'O processo volta a aparecer para todos os usuários e a receber entregas.'
+                                    : 'O processo deixa de receber entregas e some da lista dos demais usuários. O histórico é preservado e ele pode ser reativado depois.'}
+                            </p>
+                        )}
                         <label className="block">Motivo<textarea autoFocus required className="input w-full mt-2" value={actionReason} onChange={e => setActionReason(e.target.value)} /></label>
                         <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setReasonAction(null)}>Cancelar</button><button className="btn-primary" disabled={!actionReason.trim() || revertDeliveryMutation.isPending || setActiveMutation.isPending}>Confirmar alteração</button></div>
                     </form>
@@ -988,7 +1000,27 @@ export default function ProcessList() {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 pt-4">
+                                <div className="flex flex-wrap justify-end gap-3 pt-4">
+                                    {selectedProcess && isMasterUser && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const target = selectedProcess;
+                                                setShowModal(false);
+                                                setSelectedProcess(null);
+                                                setActionReason('');
+                                                setReasonAction({ process: target, kind: 'active' });
+                                            }}
+                                            className={`mr-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                selectedProcess.isActive === false
+                                                    ? 'text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20'
+                                                    : 'text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+                                            }`}
+                                        >
+                                            {selectedProcess.isActive === false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                            {selectedProcess.isActive === false ? 'Ativar processo' : 'Inativar processo'}
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => {
