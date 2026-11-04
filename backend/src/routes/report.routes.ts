@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 import { getPerformanceEvolution, createMilestone } from '../controllers/evolution.controller';
-import { getProcessPerformance } from '../controllers/processPerformance.controller';
+import { getProcessPerformance, exportProcessPerformance } from '../controllers/processPerformance.controller';
 import { getReportEmailOptions, getReportEmailStatus, sendReportEmail, requireReportSender, uploadReport } from '../controllers/reportEmail.controller';
 
 router.use(authenticate, requireCompany);
@@ -36,6 +36,7 @@ router.get('/extract', validate(reportValidation), getExtract);
 router.get('/history', getHistory);
 router.get('/performance-history', getPerformanceEvolution);
 router.get('/process-performance', getProcessPerformance);
+router.get('/process-performance/export', exportProcessPerformance);
 router.post('/milestones', createMilestone);
 
 // Process curve (Planned vs Realized)

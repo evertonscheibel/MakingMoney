@@ -21,6 +21,7 @@ export interface ProcessPerformanceRow {
     sampleSize: number;
     average: number | null;
     trend: number | null;
+    drops: string[];
 }
 
 export interface ProcessPerformanceReport {
@@ -28,4 +29,5 @@ export interface ProcessPerformanceReport {
     to: string;
     months: string[];
     rows: ProcessPerformanceRow[];
+    volume: { month: string; activeProcesses: number; evaluated: number; average: number | null }[];
 }

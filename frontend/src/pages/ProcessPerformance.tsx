@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
-import { Filter, Search, X } from 'lucide-react';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ComposedChart, Line, Legend } from 'recharts';
+import { Filter, Search, X, FileSpreadsheet, TrendingDown } from 'lucide-react';
 import { reportsApi, companiesApi } from '../api';
+import { api } from '../api/client';
 import { useAuth } from '../contexts';
 import { getAccessibleSectors } from '../utils/companyAccess';
-import type { ProcessPerformanceRow } from '../types/processPerformance';
+import type { ProcessPerformanceReport, ProcessPerformanceRow } from '../types/processPerformance';
 import ReportActions from '../components/ReportActions';
 import { reportFilename } from '../utils/reportDocument';
 import { buildProcessPerformancePDF } from '../utils/processPerformancePdfExport';
@@ -31,6 +32,8 @@ export default function ProcessPerformance() {
     const [to, setTo] = useState(currentMonth);
     const [selectedSector, setSelectedSector] = useState('');
     const [search, setSearch] = useState('');
+    const [onlyDrops, setOnlyDrops] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const detailRef = useRef<HTMLDivElement>(null);
 
@@ -50,8 +53,26 @@ export default function ProcessPerformance() {
 
     const rows = useMemo(() => {
         const term = search.trim().toLowerCase();
-        return (data?.rows || []).filter(r => !term || r.code.includes(term) || r.title.toLowerCase().includes(term));
-    }, [data, search]);
+        return (data?.rows || []).filter(r => (!term || r.code.includes(term) || r.title.toLowerCase().includes(term))
+            && (!onlyDrops || (r.trend != null && r.trend < 0)));
+    }, [data, search, onlyDrops]);
+    const dropCount = (data?.rows || []).filter(r => r.trend != null && r.trend < 0).length;
+
+    const exportExcel = async () => {
+        setExporting(true);
+        try {
+            const response = await api.get('/reports/process-performance/export', { responseType: 'blob',
+                params: { from, to, sector: selectedSector || undefined, search: search || undefined, onlyDrops: onlyDrops || undefined } });
+            const url = URL.createObjectURL(response.data as Blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = `desempenho_processos_${from}_a_${to}.xlsx`; link.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            alert('Não foi possível gerar a planilha. Tente novamente.');
+        } finally {
+            setExporting(false);
+        }
+    };
     const selected = rows.find(r => r.key === selectedKey) || null;
     const showSector = !selectedSector;
 
@@ -73,6 +94,10 @@ export default function ProcessPerformance() {
 
             <ReportActions build={buildDocument} emailContext={{ title: 'Desempenho de processos', period: to, sector: selectedSector }}
                 filename={reportFilename('desempenho_processos', `${from}_a_${to}`)} disabled={!company || !data || isFetching || isError} />
+            <button type="button" onClick={exportExcel} disabled={!data || exporting || isFetching} className="btn-secondary inline-flex items-center gap-2 -mt-3 disabled:opacity-50">
+                <FileSpreadsheet className="w-4 h-4" />{exporting ? 'Gerando planilha...' : 'Exportar Excel'}
+            </button>
+
 
             <div className="card flex flex-wrap items-end gap-4">
                 <div className="flex items-center gap-2 self-center">
@@ -93,7 +118,13 @@ export default function ProcessPerformance() {
                         <input className="input block w-full pl-9" placeholder="Código ou nome" value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                 </label>
+                <label className="text-sm inline-flex items-center gap-2 self-center cursor-pointer">
+                    <input type="checkbox" checked={onlyDrops} onChange={e => setOnlyDrops(e.target.checked)} />
+                    <TrendingDown className="w-4 h-4 text-red-500" />Só processos em queda ({dropCount})
+                </label>
             </div>
+
+            {data && <VolumeChart data={data} />}
 
             <div className="flex flex-wrap gap-3 text-xs">
                 {(Object.keys(SCORE_BAND_LABELS) as ScoreBand[]).map(band => (
@@ -115,6 +146,7 @@ export default function ProcessPerformance() {
                                 {data!.months.map(m => <th key={m} className="px-2 py-2 text-center whitespace-nowrap">{monthLabel(m)}</th>)}
                                 <th className="px-3 py-2 text-center">Média</th>
                                 <th className="px-2 py-2 text-center" title="Ciclos avaliados">n</th>
+                                <th className="px-2 py-2 text-center" title="Diferença entre os dois últimos ciclos avaliados">Var.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -128,9 +160,12 @@ export default function ProcessPerformance() {
                                     {showSector && <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.sector}</td>}
                                     {data!.months.map(m => {
                                         const score = row.cells[m]?.score;
+                                        const dropped = row.drops.includes(m);
                                         return <td key={m} className="px-1 py-1 text-center">
                                             {score != null
-                                                ? <span className={`inline-block min-w-[40px] px-1.5 py-0.5 rounded font-medium ${SCORE_BAND_CLASSES[scoreBand(score)]}`}>{formatScore(score)}</span>
+                                                ? <span title={dropped ? 'Caiu em relação ao ciclo avaliado anterior' : undefined}
+                                                    className={`inline-block min-w-[40px] px-1.5 py-0.5 rounded font-medium ${SCORE_BAND_CLASSES[scoreBand(score)]} ${dropped ? 'ring-2 ring-red-500' : ''}`}>
+                                                    {dropped && '▼ '}{formatScore(score)}</span>
                                                 : <span className="text-gray-300" title={emptyCellReason(row, m)}>—</span>}
                                         </td>;
                                     })}
@@ -140,9 +175,12 @@ export default function ProcessPerformance() {
                                             : <span className="text-gray-300">—</span>}
                                     </td>
                                     <td className="px-2 py-2 text-center text-gray-500">{row.sampleSize}</td>
+                                    <td className={`px-2 py-2 text-center font-medium whitespace-nowrap ${row.trend == null || row.trend === 0 ? 'text-gray-400' : row.trend < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                                        {row.trend == null ? '—' : row.trend === 0 ? '0' : `${row.trend > 0 ? '▲ +' : '▼ '}${formatScore(row.trend)}`}
+                                    </td>
                                 </tr>
                                 {row.key === selectedKey && (
-                                    <tr><td colSpan={data!.months.length + (showSector ? 5 : 4)} className="p-3 bg-gray-50 dark:bg-gray-900/40">
+                                    <tr><td colSpan={data!.months.length + (showSector ? 6 : 5)} className="p-3 bg-gray-50 dark:bg-gray-900/40">
                                         <div ref={detailRef} className="sticky left-0 max-w-[calc(100vw-22rem)]">
                                             <ProcessEvolutionDetail row={row} months={data!.months} onClose={() => setSelectedKey(null)} />
                                         </div>
@@ -188,6 +226,32 @@ function ProcessEvolutionDetail({ row, months, onClose }: { row: ProcessPerforma
                 </ResponsiveContainer>
             </div>
             <p className="text-xs text-gray-500 mt-2">Ciclos sem barra não tiveram avaliação. Quedas indicam onde investigar: atraso de outro setor, volume, férias, mudança de responsável.</p>
+        </div>
+    );
+}
+
+function VolumeChart({ data }: { data: ProcessPerformanceReport }) {
+    const chartData = data.volume.map(v => ({ ...v, label: monthLabel(v.month) }));
+    return (
+        <div className="card">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Volume × desempenho</h2>
+            <p className="text-sm text-gray-500 mb-4">Barras: processos ativos em cada ciclo. Linha: média das notas avaliadas. Mostra os dois juntos, sem afirmar que um causa o outro.</p>
+            <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="label" />
+                        <YAxis yAxisId="volume" allowDecimals={false} />
+                        <YAxis yAxisId="score" orientation="right" domain={[0, 100]} />
+                        <Tooltip cursor={{ fill: 'transparent' }} formatter={(value, name) => value == null ? 'Sem avaliação' : name === 'Média' ? formatScore(Number(value)) : value} />
+                        <Legend />
+                        <Bar yAxisId="volume" dataKey="activeProcesses" name="Processos ativos" fill="#94a3b8" radius={[4, 4, 0, 0]}>
+                            <LabelList dataKey="activeProcesses" position="top" />
+                        </Bar>
+                        <Line yAxisId="score" type="monotone" dataKey="average" name="Média" stroke="#2563eb" strokeWidth={3} connectNulls={false} dot={{ r: 4 }} />
+                    </ComposedChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 }
