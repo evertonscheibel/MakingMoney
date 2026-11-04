@@ -1,6 +1,8 @@
 import { getAccessibleSectors } from '../utils/companyAccess';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi, cyclesApi, metricsApi, companiesApi } from '../api';
+import PerformanceDetails from '../components/PerformanceDetails';
+import { formatPerformanceAverage } from '../utils/performance';
 import { useAuth } from '../contexts';
 
 import { useState, useEffect } from 'react';
@@ -584,15 +586,13 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-bold text-gray-900 dark:text-white">
-                            {myMetrics?.averageScore?.toFixed(1) || 0}
+                            {formatPerformanceAverage(myMetrics?.performanceAverage)}
                         </span>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                             pts
                         </span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                        Baseado em {myMetrics?.count || 0} processos fechados no período
-                    </p>
+                    <PerformanceDetails indicators={myMetrics} />
                 </div>
 
                 <div className="card border-l-4 border-l-gray-200">
@@ -602,15 +602,13 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-bold text-gray-900 dark:text-white">
-                            {teamMetrics?.averageScore?.toFixed(1) || 0}
+                            {formatPerformanceAverage(teamMetrics?.performanceAverage)}
                         </span>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                             pts
                         </span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                        Baseado em {teamMetrics?.count || 0} processos fechados no geral
-                    </p>
+                    <PerformanceDetails indicators={teamMetrics} />
                 </div>
             </div>
 

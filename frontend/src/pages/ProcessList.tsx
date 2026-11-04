@@ -23,6 +23,9 @@ import {
     EyeOff,
 } from 'lucide-react';
 import CloseMonthModal from '../components/CloseMonthModal';
+import AssessmentBadge from '../components/AssessmentBadge';
+import ProcessAssessmentAction from '../components/ProcessAssessmentAction';
+import { assessmentLabels } from '../utils/assessment';
 
 export default function ProcessList() {
     const { user, refreshUser } = useAuth();
@@ -49,6 +52,8 @@ export default function ProcessList() {
     const [sectorFilter, setSectorFilter] = useState('');
     const [searchParams] = useSearchParams();
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+    const [assessmentFilter, setAssessmentFilter] = useState('');
+    const [activityFilter, setActivityFilter] = useState('');
     const [responsibleFilter, setResponsibleFilter] = useState('');
     const [deliveryMode, setDeliveryMode] = useState<'ALL' | 'DELIVERED_FIRST' | 'NOT_DELIVERED_FIRST' | 'DELIVERED_ONLY' | 'NOT_DELIVERED_ONLY'>('ALL');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -125,11 +130,13 @@ export default function ProcessList() {
     };
 
     const { data: processesData, isLoading } = useQuery({
-        queryKey: ['processes', { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter, deliveryMode, sortOrder }],
+        queryKey: ['processes', user?.activeCompanyId, { search, sector: sectorFilter, status: statusFilter, responsibleUserId: responsibleFilter, deliveryMode, sortOrder, assessmentFilter, activityFilter }],
         queryFn: () => processesApi.list({
             search: search || undefined,
             sector: sectorFilter || undefined,
             status: statusFilter || undefined,
+            assessmentState: assessmentFilter || undefined,
+            active: activityFilter ? activityFilter === 'true' : undefined,
             responsibleUserId: responsibleFilter || undefined,
             deliveryMode,
             sortBy: 'plannedDate',
@@ -215,9 +222,12 @@ export default function ProcessList() {
     const setActiveMutation = useMutation({
         mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
             processesApi.setActive(id, isActive, reason),
-        onSuccess: () => {
+        onSuccess: (_data, { isActive }) => {
             setReasonAction(null);
             setActionReason('');
+            setNotice(isActive
+                ? 'Processo reativado. Ele volta a aparecer para todos os usuários e a receber entregas.'
+                : 'Processo inativado. Para você (Master) ele continua na lista, esmaecido e com o selo "Inativo"; para os demais usuários ele deixa de aparecer. Use o filtro "Somente inativos" para encontrá-lo e o botão "Ativar" para reativá-lo.');
             ['processes', 'currentCycle', 'summary', 'extract', 'myMetrics', 'teamMetrics', 'bonus-report', 'sectorRanking'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
         },
         onError: (error: any) => {
@@ -275,10 +285,11 @@ export default function ProcessList() {
     });
 
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-    const activeFilterCount = [sectorFilter, statusFilter, responsibleFilter, deliveryMode !== 'ALL', sortOrder !== 'asc'].filter(Boolean).length;
+    const activeFilterCount = [sectorFilter, statusFilter, responsibleFilter, assessmentFilter, activityFilter, deliveryMode !== 'ALL', sortOrder !== 'asc'].filter(Boolean).length;
 
     const renderActions = (process: Process) => (
                                         <div className="flex items-center justify-center gap-1 flex-wrap md:grid md:grid-cols-3 process-actions">
+                                            {!isOperator && <ProcessAssessmentAction process={process} />}
                                             {/* Delivery Actions based on deliveryStatus */}
                                             {(!isOperator || String(process.responsibleUserId) === String(user?.id || user?._id)) && (!process.deliveryStatus || process.deliveryStatus === DeliveryStatus.NOT_DELIVERED) && (
                                                 <button
@@ -366,18 +377,20 @@ export default function ProcessList() {
                                                         setActionReason('');
                                                         setReasonAction({process, kind: 'active'});
                                                     }}
-                                                    className={`p-1 rounded-md transition-colors ${
+                                                    className={`md:col-span-3 md:order-last inline-flex items-center justify-center gap-1 px-1.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                                                         process.isActive === false
                                                             ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                                                             : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
                                                     }`}
-                                                    title={process.isActive === false ? 'Ativar Processo' : 'Inativar Processo'}
+                                                    title={process.isActive === false ? 'Ativar processo' : 'Inativar processo'}
+                                                    aria-label={process.isActive === false ? `Ativar processo ${process.code}` : `Inativar processo ${process.code}`}
                                                 >
                                                     {process.isActive === false ? (
                                                         <Eye className="w-4 h-4" />
                                                     ) : (
                                                         <EyeOff className="w-4 h-4" />
                                                     )}
+                                                    <span>{process.isActive === false ? 'Ativar' : 'Inativar'}</span>
                                                 </button>
                                             )}
                                             {!isOperator && (
@@ -471,6 +484,7 @@ export default function ProcessList() {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const data: ProcessForm = {
+            category: (formData.get('category') as string) || '',
             code: (formData.get('code') as string) || undefined,
             title: formData.get('title') as string,
             sector: (formData.get('sector') as string) || selectedSector || '',
@@ -542,7 +556,14 @@ export default function ProcessList() {
                         if (kind === 'revert') revertDeliveryMutation.mutate({id: process._id, reason: actionReason.trim()});
                         else setActiveMutation.mutate({id: process._id, isActive: process.isActive === false, reason: actionReason.trim()});
                     }}>
-                        <h2 className="text-lg font-semibold">{reasonAction.kind === 'revert' ? 'Reverter entrega' : 'Alterar atividade do processo'}</h2>
+                        <h2 className="text-lg font-semibold">{reasonAction.kind === 'revert' ? 'Reverter entrega' : reasonAction.process.isActive === false ? `Ativar processo ${reasonAction.process.code}` : `Inativar processo ${reasonAction.process.code}`}</h2>
+                        {reasonAction.kind === 'active' && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {reasonAction.process.isActive === false
+                                    ? 'O processo volta a aparecer para todos os usuários e a receber entregas.'
+                                    : 'O processo deixa de receber entregas e some da lista dos demais usuários. O histórico é preservado e ele pode ser reativado depois.'}
+                            </p>
+                        )}
                         <label className="block">Motivo<textarea autoFocus required className="input w-full mt-2" value={actionReason} onChange={e => setActionReason(e.target.value)} /></label>
                         <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setReasonAction(null)}>Cancelar</button><button className="btn-primary" disabled={!actionReason.trim() || revertDeliveryMutation.isPending || setActiveMutation.isPending}>Confirmar alteração</button></div>
                     </form>
@@ -613,6 +634,12 @@ export default function ProcessList() {
                             <span className="badge-pending">{activeFilterCount} {activeFilterCount === 1 ? 'ativo' : 'ativos'}</span>
                         </button>
                         <div id="process-advanced-filters" className={`${showAdvancedFilters ? 'grid' : 'hidden'} md:grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5`}>
+                            <select className="input" aria-label="Filtrar avaliação" value={assessmentFilter} onChange={e => setAssessmentFilter(e.target.value)}>
+                                <option value="">Todas as avaliações</option>{Object.entries(assessmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                            </select>
+                            {isMasterUser && <select className="input" aria-label="Filtrar atividade" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}>
+                                <option value="">Ativos e inativos</option><option value="true">Somente ativos</option><option value="false">Somente inativos</option>
+                            </select>}
                             <select
                                 aria-label="Filtrar por setor"
                                 value={sectorFilter}
@@ -708,7 +735,7 @@ export default function ProcessList() {
                             <article key={process._id} className={`p-4 space-y-3 ${process.isActive === false ? "opacity-50" : ""}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0"><p className="text-xs text-gray-500 mb-1">{process.code} · {process.sector}</p><h2 className="font-semibold text-gray-900 dark:text-white break-words">{process.title}</h2></div>
-                                    {getStatusBadge(process)}
+                                    <div className="flex flex-wrap gap-1">{getStatusBadge(process)}<AssessmentBadge process={process} /></div>
                                 </div>
                                 <dl className="grid grid-cols-2 gap-3 text-sm">
                                     <div><dt className="section-label">Prazo limite</dt><dd className="mt-1">{new Date(process.limitDate).toLocaleDateString("pt-BR", {timeZone: "UTC"})}</dd></div>
@@ -748,7 +775,7 @@ export default function ProcessList() {
                                     </td>
                                     <td className="text-center">
                                         <div className="flex justify-center">
-                                            {getStatusBadge(process)}
+                                            <div className="flex flex-col gap-1 items-start">{getStatusBadge(process)}<AssessmentBadge process={process} /></div>
                                         </div>
                                     </td>
                                     <td className="text-sm text-center hidden lg:table-cell">
@@ -922,6 +949,7 @@ export default function ProcessList() {
                                         required
                                     />
                                 </div>
+                                <label className="block text-sm">Categoria (opcional)<input name="category" className="input mt-1" maxLength={100} defaultValue={selectedProcess?.category || ''} /></label>
                                 <div>
                                     <label className="label">Responsável</label>
                                     <input
@@ -972,7 +1000,27 @@ export default function ProcessList() {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 pt-4">
+                                <div className="flex flex-wrap justify-end gap-3 pt-4">
+                                    {selectedProcess && isMasterUser && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const target = selectedProcess;
+                                                setShowModal(false);
+                                                setSelectedProcess(null);
+                                                setActionReason('');
+                                                setReasonAction({ process: target, kind: 'active' });
+                                            }}
+                                            className={`mr-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                selectedProcess.isActive === false
+                                                    ? 'text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20'
+                                                    : 'text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+                                            }`}
+                                        >
+                                            {selectedProcess.isActive === false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                            {selectedProcess.isActive === false ? 'Ativar processo' : 'Inativar processo'}
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => {

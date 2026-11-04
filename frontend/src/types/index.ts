@@ -1,4 +1,6 @@
 // ==================== ENUMS ====================
+import type { AssessmentState } from '../utils/assessment';
+export type { AssessmentState } from '../utils/assessment';
 export enum UserRole {
     MASTER = 'master',
     MANAGER = 'manager',
@@ -91,7 +93,25 @@ export interface Company {
     isActive: boolean;
 }
 
-export interface CycleKPIs {
+export interface PerformanceIndicators {
+    assessmentVersion?: 1;
+    eligibleCount?: number;
+    assessedEligibleCount?: number;
+    pendingAssessmentCount?: number;
+    missingAssessmentCount?: number;
+    notApplicableCount?: number;
+    coveragePct?: number | null;
+    inconsistentAssessmentCount?: number;
+    aggregationVersion: 1;
+    scoreSum: number;
+    validScoreCount: number;
+    performanceAverage: number | null;
+    activeProcessCount: number;
+    deliveredCount: number;
+    deliveryRatePct: number | null;
+}
+
+export interface CycleKPIs extends Partial<PerformanceIndicators> {
     avgScore: number;
     onTimePct: number;
     criticalCount: number;
@@ -117,6 +137,13 @@ export interface Cycle {
 }
 
 export interface Process {
+    category?: string;
+    lineageId?: string;
+    sourceProcessId?: string | null;
+    assessmentRequired?: boolean;
+    nonApplicableReason?: string | null;
+    assessmentState?: AssessmentState;
+    assessmentEligible?: boolean;
     _id: string;
     companyId: string;
     cycleId: string;
@@ -251,7 +278,7 @@ export interface SummaryKPIs {
         sector: string;
         status: CycleStatus;
     };
-    kpis: {
+    kpis: PerformanceIndicators & {
         totalProcesses: number;
         deliveredCount: number;
         pendingCount: number;
@@ -264,7 +291,7 @@ export interface SummaryKPIs {
     };
 }
 
-export interface SectorRanking {
+export interface SectorRanking extends PerformanceIndicators {
     sector: string;
     totalProcesses: number;
     avgScore: number;
@@ -279,7 +306,7 @@ export interface StatusDistribution {
     percentage: number;
 }
 
-export interface HistoryPoint {
+export interface HistoryPoint extends Partial<PerformanceIndicators> {
     month: string;
     avgScore: number;
     onTimePct: number;
@@ -295,6 +322,7 @@ export interface LoginForm {
 }
 
 export interface ProcessForm {
+    category?: string;
     code?: string;
     title: string;
     sector: string;

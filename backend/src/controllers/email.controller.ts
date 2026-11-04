@@ -41,7 +41,7 @@ export const simulateEmail = asyncHandler(async (req: Request, res: Response): P
             code: matchedCode,
         });
 
-        if (matchedProcess && !matchedProcess.deliveryDate) {
+        if (matchedProcess && !matchedProcess.deliveryDate && matchedProcess.isActive !== false && matchedProcess.assessmentRequired !== false) {
             // Get evaluation config
             const evalConfig = await EvaluationConfig.findOne({
                 companyId: activeCompanyId,
@@ -64,6 +64,8 @@ export const simulateEmail = asyncHandler(async (req: Request, res: Response): P
             matchedProcess.deliverySource = DeliverySource.EMAIL;
             matchedProcess.deliveryEvidence = `Email from ${from}: ${subject}`;
             matchedProcess.score = score;
+            matchedProcess.evaluatedResponsibleUserId = matchedProcess.responsibleUserId;
+            matchedProcess.evaluationRuleVersion = evalConfig?.version ?? 0;
             matchedProcess.status = status;
 
             await matchedProcess.save();

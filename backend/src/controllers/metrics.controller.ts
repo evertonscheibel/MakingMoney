@@ -1,3 +1,5 @@
+import { performanceAccumulators, performanceFromTotals } from '../utils/performance';
+import { assessmentAccumulators, coverageFromTotals } from '../utils/assessment';
 import { getCompanySectorScope } from '../utils/processAccess';
 import { Request, Response } from 'express';
 import { query } from 'express-validator';
@@ -22,7 +24,6 @@ export const getMyMetrics = asyncHandler(async (req: Request, res: Response): Pr
     const matchStage: any = {
         companyId: new Types.ObjectId(companyId.toString()),
         responsibleUserId: new Types.ObjectId(userId.toString()),
-        status: { $ne: ProcessStatus.PENDING },
         isActive: { $ne: false },
     };
 
@@ -49,19 +50,20 @@ export const getMyMetrics = asyncHandler(async (req: Request, res: Response): Pr
         {
             $group: {
                 _id: null,
-                averageScore: { $avg: '$score' },
-                count: { $sum: 1 },
+                ...performanceAccumulators(),
+                ...assessmentAccumulators(),
+                // Preserve legacy count semantics; validScoreCount is the sample size.
+                count: { $sum: { $cond: [{ $ne: ['$status', ProcessStatus.PENDING] }, 1, 0] } },
             },
         },
     ]);
 
-    const result = metrics.length > 0 ? {
-        averageScore: Math.round(metrics[0].averageScore || 0),
-        count: metrics[0].count,
-    } : {
-        averageScore: 0,
-        count: 0,
-    };
+    const row = metrics[0];
+    const performance = performanceFromTotals({ scoreSum: row?.scoreSum ?? 0,
+        validScoreCount: row?.validScoreCount ?? 0, activeProcessCount: row?.activeProcessCount ?? 0,
+        deliveredCount: row?.deliveredCount ?? 0 });
+    const result = { averageScore: Math.round(performance.performanceAverage ?? 0),
+        count: row?.count ?? 0, ...performance, ...coverageFromTotals(row) };
 
     res.json({
         success: true,
@@ -80,7 +82,6 @@ export const getTeamMetrics = asyncHandler(async (req: Request, res: Response): 
 
     const matchStage: any = {
         companyId: new Types.ObjectId(companyId.toString()),
-        status: { $ne: ProcessStatus.PENDING },
         isActive: { $ne: false },
     };
 
@@ -106,19 +107,20 @@ export const getTeamMetrics = asyncHandler(async (req: Request, res: Response): 
         {
             $group: {
                 _id: null,
-                averageScore: { $avg: '$score' },
-                count: { $sum: 1 },
+                ...performanceAccumulators(),
+                ...assessmentAccumulators(),
+                // Preserve legacy count semantics; validScoreCount is the sample size.
+                count: { $sum: { $cond: [{ $ne: ['$status', ProcessStatus.PENDING] }, 1, 0] } },
             },
         },
     ]);
 
-    const result = metrics.length > 0 ? {
-        averageScore: Math.round(metrics[0].averageScore || 0),
-        count: metrics[0].count,
-    } : {
-        averageScore: 0,
-        count: 0,
-    };
+    const row = metrics[0];
+    const performance = performanceFromTotals({ scoreSum: row?.scoreSum ?? 0,
+        validScoreCount: row?.validScoreCount ?? 0, activeProcessCount: row?.activeProcessCount ?? 0,
+        deliveredCount: row?.deliveredCount ?? 0 });
+    const result = { averageScore: Math.round(performance.performanceAverage ?? 0),
+        count: row?.count ?? 0, ...performance, ...coverageFromTotals(row) };
 
     res.json({
         success: true,

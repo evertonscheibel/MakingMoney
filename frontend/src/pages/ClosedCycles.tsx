@@ -6,6 +6,9 @@ import { cyclesApi, processesApi, companiesApi } from '../api';
 import { Calendar, TrendingUp, Award, AlertCircle, Eye, RefreshCw, Filter } from 'lucide-react';
 import { useAuth } from '../contexts';
 import { UserRole } from '../types';
+import type { PerformanceIndicators } from '../types';
+import PerformanceDetails from '../components/PerformanceDetails';
+import { formatPerformanceAverage } from '../utils/performance';
 
 interface Cycle {
     _id: string;
@@ -13,7 +16,7 @@ interface Cycle {
     status: string;
     closedAt?: string;
     sector?: string;
-    kpis?: {
+    kpis?: Partial<PerformanceIndicators> & {
         avgScore: number;
         onTimePct: number;
         criticalCount: number;
@@ -96,6 +99,28 @@ export default function ClosedCycles() {
             }
         });
 
+        for (const group of Object.values(groups)) {
+            // Never weight the new average by all processes: its denominator is valid scores.
+            // Legacy snapshots lack that denominator and cannot produce a comparable average.
+            if (group.sectorCycles.every((c: Cycle) => c.kpis?.aggregationVersion === 1)) {
+                const totals = group.sectorCycles.reduce((acc: any, c: Cycle) => ({
+                    scoreSum: acc.scoreSum + (c.kpis!.scoreSum ?? 0),
+                    validScoreCount: acc.validScoreCount + (c.kpis!.validScoreCount ?? 0),
+                    activeProcessCount: acc.activeProcessCount + (c.kpis!.activeProcessCount ?? 0),
+                    deliveredCount: acc.deliveredCount + (c.kpis!.deliveredCount ?? 0),
+                }), { scoreSum: 0, validScoreCount: 0, activeProcessCount: 0, deliveredCount: 0 });
+                Object.assign(group.kpis, totals, { aggregationVersion: 1,
+                    performanceAverage: totals.validScoreCount ? Math.round(totals.scoreSum / totals.validScoreCount * 100) / 100 : null,
+                    deliveryRatePct: totals.activeProcessCount ? Math.round(totals.deliveredCount / totals.activeProcessCount * 10000) / 100 : null,
+                });
+                if (group.sectorCycles.every((c: Cycle) => c.kpis?.assessmentVersion === 1)) {
+                    const eligible = group.sectorCycles.reduce((n: number, c: Cycle) => n + (c.kpis!.eligibleCount ?? 0), 0);
+                    const assessed = group.sectorCycles.reduce((n: number, c: Cycle) => n + (c.kpis!.assessedEligibleCount ?? 0), 0);
+                    Object.assign(group.kpis, { assessmentVersion: 1, eligibleCount: eligible, assessedEligibleCount: assessed,
+                        coveragePct: eligible ? Math.round(assessed * 10000 / eligible) / 100 : null });
+                }
+            }
+        }
         return Object.values(groups).sort((a, b) => b.month.localeCompare(a.month));
     }, [cycles, selectedSector]);
 
@@ -295,12 +320,17 @@ export default function ClosedCycles() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <Award className="w-4 h-4" />
-                                            <span>Pontuação Média</span>
+                                            <span>{cycle.kpis.aggregationVersion === 1 ? 'Pontuação Média' : 'Pontuação registrada'}</span>
                                         </div>
-                                        <span className={`font-semibold ${getScoreColor(cycle.kpis.avgScore)}`}>
-                                            {cycle.kpis.avgScore.toFixed(1)}
+                                        <span className={`font-semibold ${cycle.kpis.aggregationVersion === 1 && cycle.kpis.performanceAverage == null ? 'text-gray-500' : getScoreColor(cycle.kpis.performanceAverage ?? cycle.kpis.avgScore)}`}>
+                                            {cycle.kpis.aggregationVersion === 1
+                                                ? formatPerformanceAverage(cycle.kpis.performanceAverage)
+                                                : cycle.isConsolidated ? 'Sem dados comparáveis' : cycle.kpis.avgScore.toFixed(1)}
                                         </span>
                                     </div>
+                                    {cycle.kpis.aggregationVersion === 1
+                                        ? <PerformanceDetails indicators={cycle.kpis} />
+                                        : <p className="text-xs text-gray-500">Histórico com amostra indisponível. Consulte os registros por setor.</p>}
 
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">

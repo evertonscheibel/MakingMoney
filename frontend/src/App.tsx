@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ProcessList from './pages/ProcessList';
 import Reports from './pages/Reports';
+import ProcessPerformance from './pages/ProcessPerformance';
 import EvaluationSettings from './pages/EvaluationSettings';
 import EmailSettings from './pages/EmailSettings';
 
@@ -100,6 +101,7 @@ function App() {
                                         <Route path="/" element={<PermissionRoute id="dashboard"><Dashboard /></PermissionRoute>} />
                                         <Route path="/processes" element={<PermissionRoute id="processes"><ProcessList /></PermissionRoute>} />
                                         <Route path="/reports" element={<PermissionRoute id="reports"><Reports /></PermissionRoute>} />
+                                        <Route path="/process-performance" element={<PermissionRoute id="process-performance"><ProcessPerformance /></PermissionRoute>} />
                                         <Route path="/cycles/history" element={<PermissionRoute id="cycle-history"><ClosedCycles /></PermissionRoute>} />
                                         <Route path="/email-logs" element={<PermissionRoute id="email-logs"><EmailLogs /></PermissionRoute>} />
                                         <Route path="/process-curve" element={<PermissionRoute id="process-curve"><ProcessCurveReport /></PermissionRoute>} />
