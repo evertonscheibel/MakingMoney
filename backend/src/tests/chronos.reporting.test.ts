@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { Types } from 'mongoose';
 import { Company, Cycle, Process, User } from '../models';
-import { CycleStatus, ProcessStatus, UserRole } from '../types';
+import { CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
 import { getHistory, getSummary, getSectorRanking, getProcessCurve } from '../controllers/report.controller';
 import { getMyMetrics, getTeamMetrics } from '../controllers/metrics.controller';
 import { getBonusReport } from '../controllers/bonus.controller';
@@ -52,6 +52,26 @@ async function processes(c: any, entries: { score: number | null; active?: boole
         status: entry.score === null || entry.score === 0 ? ProcessStatus.CRITICAL : ProcessStatus.ON_TIME,
         score: entry.score, isActive: entry.active !== false, responsibleUserId: operator._id })));
 }
+
+it('separa entregas fora do limite das pendências e mantém o prazo válido no próprio dia', async () => {
+    const c = await cycle('2025-10');
+    const [late, open, early] = await processes(c, [{ score: 50 }, { score: null }, { score: 100 }]);
+    await Process.updateOne({ _id: late._id }, { deliveryDate: new Date('2025-10-22T00:00:00Z'), status: ProcessStatus.ON_TIME });
+    await Process.updateOne({ _id: open._id }, { status: ProcessStatus.PENDING });
+    await Process.updateOne({ _id: early._id }, {
+        plannedDate: new Date('2025-10-09T00:00:00Z'), deliveryDate: new Date('2025-10-10T02:00:00Z'),
+        deliverySource: DeliverySource.EMAIL, status: ProcessStatus.CRITICAL,
+    });
+    const { body: { data } } = await request(app).get('/curve').query({ period: c.month }).expect(200);
+    expect(Object.fromEntries(data.deliveryBreakdown.map((band: any) => [band.key, band.count]))).toMatchObject({
+        EARLY: 0, ON_PLANNED: 1, CRITICAL: 1, OVERDUE: 1,
+    });
+    expect(data.series[19]).toMatchObject({ day: 20, delayedOpen: 2, overdueOpen: 0 });
+    expect(data.series[20]).toMatchObject({ day: 21, delayedOpen: 0, overdueOpen: 2 });
+    expect(data.series[21]).toMatchObject({ day: 22, overdueOpen: 1 });
+    expect(data.riskBySector).toEqual([{ sector: 'Financeiro', delayedOpen: 0, overdueOpen: 1 }]);
+    expect(data.criticalItems).toMatchObject([{ id: String(open._id), deliveryDate: null }, { id: String(late._id), deliveryDate: '2025-10-22' }]);
+});
 
 describe('Nota por avaliações válidas e proporção de entregas (D1 aprovada)', () => {
     it.each([

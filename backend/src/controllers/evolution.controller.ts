@@ -5,7 +5,7 @@ import { OperationalMilestone } from '../models/OperationalMilestone';
 import { asyncHandler, AppError } from '../middleware/errors';
 import { getCompanySectorScope, assertSectorAccess } from '../utils/processAccess';
 import { calculatePerformance } from '../utils/performance';
-import { assessmentIndicators, businessToday } from '../utils/assessment';
+import { assessmentIndicators, assessmentState, businessToday } from '../utils/assessment';
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -90,11 +90,26 @@ export const getPerformanceEvolution = asyncHandler(async (req: Request, res: Re
         attributionQuality: p.score != null && (p.evaluationRuleVersion != null || p.evaluatedResponsibleUserId != null) ? 'AT_DELIVERY' : 'DOCUMENT',
     }));
     if (req.query.userId) rows = rows.filter(p => p.effectiveResponsibleId === req.query.userId);
+    const processOptions = req.query.processId ? rows.map(p => ({
+        id: String(p._id), code: p.code, title: p.title, month: p.month, sector: p.sector,
+    })) : undefined;
     if (req.query.processId) {
         const selected = rows.find(p => String(p._id) === req.query.processId);
         if (!selected) throw new AppError('Processo fora do recorte autorizado.', 404);
         rows = rows.filter(p => selected.lineageKey ? p.lineageKey === selected.lineageKey : String(p._id) === String(selected._id));
     }
+    const processCycles = req.query.processId ? rows.map(p => {
+        const cycle = cycleMap.get(String(p.cycleId))!;
+        const [year, month] = p.month.split('-').map(Number);
+        const cutoff = new Date(Math.min(now.getTime(), Date.UTC(year, month, 1, 3, 59, 59, 999)));
+        return {
+            id: String(p._id), month: p.month, sector: p.sector, cycleStatus: cycle.status,
+            plannedDate: p.plannedDate, limitDate: p.limitDate, deliveryDate: p.deliveryDate ?? null,
+            score: p.score ?? null, isActive: p.isActive !== false,
+            assessment: p.assessmentRequired === false ? 'NAO_APLICAVEL' : assessmentState(p, cutoff),
+            coveragePct: assessmentIndicators([p], cutoff).coveragePct,
+        };
+    }).sort((a, b) => a.month.localeCompare(b.month) || a.sector.localeCompare(b.sector)) : undefined;
     const actorIds = [...new Set(rows.map(p => p.effectiveResponsibleId).filter(Boolean))];
     const actors = await User.find({ _id: { $in: actorIds }, 'companyAccess.companyId': req.companyId }).select('_id name').lean();
     const names = new Map(actors.map(u => [String(u._id), u.name]));
@@ -167,7 +182,7 @@ export const getPerformanceEvolution = asyncHandler(async (req: Request, res: Re
     if ((requestedA && !a) || (requestedB && !b)) throw new AppError('Períodos de comparação fora do intervalo.', 400);
     const comparison = compare(a, b, req.query.equivalent === 'true');
     res.json({ success: true, data: { from, to, groupBy, series, comparison, events,
-        categories, records: rows.map(p => ({ id: String(p._id), code: p.code, title: p.title, month: p.month,
+        categories, processOptions, processCycles, records: rows.map(p => ({ id: String(p._id), code: p.code, title: p.title, month: p.month,
             sector: p.sector, lineageId: p.lineageKey, responsibleId: p.effectiveResponsibleId,
             responsible: names.get(p.effectiveResponsibleId) || p.owner || 'Não informado', attributionQuality: p.attributionQuality })),
         warnings: { unconfirmedLineageCount: rows.filter(p => !p.lineageKey).length,

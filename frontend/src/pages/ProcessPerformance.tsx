@@ -56,7 +56,11 @@ export default function ProcessPerformance() {
         return (data?.rows || []).filter(r => (!term || r.code.includes(term) || r.title.toLowerCase().includes(term))
             && (!onlyDrops || (r.trend != null && r.trend < 0)));
     }, [data, search, onlyDrops]);
-    const dropCount = (data?.rows || []).filter(r => r.trend != null && r.trend < 0).length;
+    const drops = rows.filter(r => r.trend != null && r.trend < 0)
+        .sort((a, b) => a.trend! - b.trend!);
+    const compared = rows.filter(row => row.trend != null).length;
+    const dropCount = data?.rows.filter(r => r.trend != null && r.trend < 0).length ?? 0;
+    const toggleProcess = (key: string) => setSelectedKey(current => current === key ? null : key);
 
     const exportExcel = async () => {
         setExporting(true);
@@ -82,14 +86,14 @@ export default function ProcessPerformance() {
 
     const buildDocument = () => {
         if (!data || !company) throw new Error('Dados indisponíveis');
-        return buildProcessPerformancePDF({ ...data, rows }, { companyName: company.name, sector: selectedSector, search, issuedBy: user?.name });
+        return buildProcessPerformancePDF({ ...data, rows }, { companyName: company.name, sector: selectedSector, search, onlyDrops, issuedBy: user?.name });
     };
 
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desempenho de Processos</h1>
-                <p className="text-gray-500 dark:text-gray-400">Pontuação de cada processo ao longo dos ciclos. Clique em um processo para ver a evolução dele.</p>
+                <p className="text-gray-500 dark:text-gray-400">Pontuação de cada processo ao longo dos ciclos. Selecione um processo para ver suas notas por ciclo.</p>
             </div>
 
             <ReportActions build={buildDocument} emailContext={{ title: 'Desempenho de processos', period: to, sector: selectedSector }}
@@ -124,7 +128,22 @@ export default function ProcessPerformance() {
                 </label>
             </div>
 
-            {data && <VolumeChart data={data} />}
+            {data && <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <VolumeChart data={data} />
+                <section className="card min-w-0">
+                    <h2 className="text-lg font-semibold">Maiores quedas recentes</h2>
+                    <p className="text-xs text-gray-500">{drops.length} de {compared} processos comparáveis na lista filtrada. Variação entre as duas últimas notas válidas.</p>
+                    {drops.length ? <ol className="mt-3 divide-y divide-gray-100 dark:divide-gray-700">
+                        {drops.slice(0, 5).map(row => <li key={row.key}>
+                            <button type="button" className="flex w-full items-center justify-between gap-3 rounded px-2 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                                aria-expanded={selectedKey === row.key} onClick={() => toggleProcess(row.key)}>
+                                <span className="min-w-0 text-sm"><span className="block truncate font-medium" title={row.title}>{row.code} · {row.title}</span><span className="text-xs text-gray-500">{row.sector} · {row.sampleSize} ciclos avaliados</span></span>
+                                <strong className="shrink-0 text-sm text-danger-600">{formatScore(row.trend!)} pts</strong>
+                            </button>
+                        </li>)}
+                    </ol> : <p className="mt-4 text-sm text-gray-500">{compared ? 'Nenhuma queda na lista filtrada.' : 'A comparação exige pelo menos duas notas válidas por processo.'}</p>}
+                </section>
+            </div>}
 
             <div className="flex flex-wrap gap-3 text-xs">
                 {(Object.keys(SCORE_BAND_LABELS) as ScoreBand[]).map(band => (
@@ -151,11 +170,14 @@ export default function ProcessPerformance() {
                         </thead>
                         <tbody>
                             {rows.map(row => (<Fragment key={row.key}>
-                                <tr onClick={() => setSelectedKey(row.key === selectedKey ? null : row.key)}
-                                    className={`border-t border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${row.key === selectedKey ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}>
+                                <tr
+                                    className={`border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 ${row.key === selectedKey ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}>
                                     <td className="px-3 py-2 font-mono sticky left-0 bg-inherit">{row.code}</td>
                                     <td className="px-3 py-2 min-w-[220px]" title={row.titleChanged ? 'O nome do processo mudou no período; mostrando o mais recente.' : undefined}>
-                                        {row.title}{row.titleChanged && <span className="text-gray-400"> *</span>}
+                                        <button type="button" className="text-left font-medium hover:underline"
+                                            aria-expanded={selectedKey === row.key} onClick={() => toggleProcess(row.key)}>
+                                            {row.title}{row.titleChanged && <span className="text-gray-400"> *</span>}
+                                        </button>
                                     </td>
                                     {showSector && <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.sector}</td>}
                                     {data!.months.map(m => {
@@ -225,7 +247,7 @@ function ProcessEvolutionDetail({ row, months, onClose }: { row: ProcessPerforma
                     </BarChart>
                 </ResponsiveContainer>
             </div>
-            <p className="text-xs text-gray-500 mt-2">Ciclos sem barra não tiveram avaliação. Quedas indicam onde investigar: atraso de outro setor, volume, férias, mudança de responsável.</p>
+            <p className="text-xs text-gray-500 mt-2">O gráfico usa apenas notas válidas. Consulte a matriz para distinguir ciclos sem avaliação, inativos e não aplicáveis.</p>
         </div>
     );
 }
@@ -235,7 +257,7 @@ function VolumeChart({ data }: { data: ProcessPerformanceReport }) {
     return (
         <div className="card">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Volume × desempenho</h2>
-            <p className="text-sm text-gray-500 mb-4">Barras: processos ativos em cada ciclo. Linha: média das notas avaliadas. Mostra os dois juntos, sem afirmar que um causa o outro.</p>
+            <p className="text-sm text-gray-500 mb-4">Visão por período e setor. As barras mostram ativos e avaliados; a linha mostra a média das notas válidas.</p>
             <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData} margin={{ top: 20 }}>
@@ -245,9 +267,8 @@ function VolumeChart({ data }: { data: ProcessPerformanceReport }) {
                         <YAxis yAxisId="score" orientation="right" domain={[0, 100]} />
                         <Tooltip cursor={{ fill: 'transparent' }} formatter={(value, name) => value == null ? 'Sem avaliação' : name === 'Média' ? formatScore(Number(value)) : value} />
                         <Legend />
-                        <Bar yAxisId="volume" dataKey="activeProcesses" name="Processos ativos" fill="#94a3b8" radius={[4, 4, 0, 0]}>
-                            <LabelList dataKey="activeProcesses" position="top" />
-                        </Bar>
+                        <Bar yAxisId="volume" dataKey="activeProcesses" name="Ativos" fill="#94a3b8" maxBarSize={20} />
+                        <Bar yAxisId="volume" dataKey="evaluated" name="Avaliados" fill="#0d9488" maxBarSize={20} />
                         <Line yAxisId="score" type="monotone" dataKey="average" name="Média" stroke="#2563eb" strokeWidth={3} connectNulls={false} dot={{ r: 4 }} />
                     </ComposedChart>
                 </ResponsiveContainer>

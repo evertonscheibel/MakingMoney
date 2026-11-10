@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { UserRole, CycleStatus } from '../types';
 import CloseMonthModal from '../components/CloseMonthModal';
+import DashboardControlCharts from '../components/DashboardControlCharts';
 
 const formatMonth = (monthStr: string) => {
     if (!monthStr) return '';
@@ -102,7 +103,7 @@ export default function Dashboard() {
     const selectedCycleObj = sortedCycles.find(c => c._id === selectedCycleId);
 
     const { data: summary, isLoading: summaryLoading } = useQuery({
-        queryKey: ['summary', selectedCycleId, selectedSector, selectedCycleObj?.month],
+        queryKey: ['summary', user?.activeCompanyId, selectedCycleId, selectedSector, selectedCycleObj?.month],
         queryFn: () => {
             // The consolidated dashboard must use the same scope as the process list:
             // every currently open sector cycle, even when sectors are on different months.
@@ -300,28 +301,29 @@ export default function Dashboard() {
     const stats = [
         {
             name: 'Total de Processos',
-            value: summary?.kpis.totalProcesses || 0,
+            value: summary?.kpis.totalProcesses ?? '—',
             icon: ClipboardCheck,
             color: 'text-primary-600',
             bgColor: 'bg-primary-50',
         },
         {
             name: 'No Prazo',
-            value: `${summary?.kpis.onTimePct || 0}%`,
+            value: summary?.kpis.totalProcesses ? `${formatPerformanceAverage(summary.kpis.onTimePct)}%` : '—',
+            detail: summary ? `${summary.kpis.onTimeCount} de ${summary.kpis.totalProcesses} ativos` : undefined,
             icon: CheckCircle2,
             color: 'text-success-600',
             bgColor: 'bg-success-50',
         },
         {
             name: 'Atrasados',
-            value: summary?.kpis.lateCount || 0,
+            value: summary?.kpis.lateCount ?? '—',
             icon: Clock,
             color: 'text-warning-600',
             bgColor: 'bg-warning-50',
         },
         {
             name: 'Críticos',
-            value: summary?.kpis.criticalCount || 0,
+            value: summary?.kpis.criticalCount ?? '—',
             icon: AlertTriangle,
             color: 'text-danger-600',
             bgColor: 'bg-danger-50',
@@ -525,6 +527,7 @@ export default function Dashboard() {
                         <button
                             type="button"
                             key={stat.name}
+                            disabled={selectedCycleObj?.status === CycleStatus.CLOSED && !!selectedSector}
                             onClick={() => {
                                 const params = new URLSearchParams();
                                 if (stat.name === 'No Prazo') params.append('status', 'ON_TIME');
@@ -542,11 +545,17 @@ export default function Dashboard() {
                                 <div>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{stat.name}</p>
                                     <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-white">{stat.value}</p>
+                                    {stat.detail && <p className="mt-1 text-xs text-gray-500">{stat.detail}</p>}
                                 </div>
                             </div>
                         </button>
                     ))}
                 </div>
+            )}
+
+            {isManager && user?.activeCompanyId && summary && (
+                <DashboardControlCharts summary={summary} companyId={user.activeCompanyId}
+                    sector={selectedSector} cycleId={selectedSector ? selectedCycleId : undefined} />
             )}
 
             {summary && (!selectedSector || selectedCycleObj?.status === CycleStatus.OPEN) && (
@@ -561,7 +570,7 @@ export default function Dashboard() {
                     <div className="grid sm:grid-cols-3 gap-3">
                         {[
                             {label: 'Processos críticos', count: summary.kpis.criticalCount, status: 'CRITICAL', style: 'text-danger-600'},
-                            {label: 'Entregas atrasadas', count: summary.kpis.lateCount, status: 'LATE', style: 'text-warning-700'},
+                            {label: 'Processos em atraso', count: summary.kpis.lateCount, status: 'LATE', style: 'text-warning-700'},
                             {label: 'Processos pendentes', count: summary.kpis.pendingCount, status: 'PENDING', style: 'text-gray-700 dark:text-gray-200'},
                         ].map(item => (
                             <button key={item.status} type="button" onClick={() => {

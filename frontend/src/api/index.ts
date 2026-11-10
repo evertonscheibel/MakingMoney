@@ -1,3 +1,4 @@
+import type { CurveReportData } from '../utils/curvePdfExport';
 import type { ProcessPerformanceReport } from '../types/processPerformance';
 import { api, apiCall } from './client';
 import type {
@@ -273,12 +274,7 @@ export const reportsApi = {
         return apiCall<HistoryPoint[]>('get', '/reports/history');
     },
 
-    getProcessCurve: async (params: { period: string; sector?: string; userId?: string }): Promise<{
-        series: any[];
-        deliveryBreakdown: { key: string; label: string; count: number }[];
-        kpis: PerformanceIndicators & { totalPlanned: number; onTimePct: number; avgScore: number };
-        criticalItems: any[];
-    }> => {
+    getProcessCurve: async (params: { period: string; sector?: string; userId?: string }): Promise<CurveReportData> => {
         return apiCall('get', '/reports/process-curve', params);
     },
 

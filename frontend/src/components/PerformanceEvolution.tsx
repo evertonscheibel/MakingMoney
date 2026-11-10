@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, BarChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { Company } from '../types';
 import type { EvolutionReport } from '../types/evolution';
-import { UserRole } from '../types';
+import { CycleStatus, UserRole } from '../types';
 import { useAuth } from '../contexts';
 import { apiCall } from '../api/client';
 import { usersApi } from '../api';
@@ -12,31 +12,42 @@ import { formatPerformanceAverage, performanceSampleLabel } from '../utils/perfo
 import { formatEventDate, eventMonth } from '../utils/evolutionDates';
 import { buildEvolutionPDF } from '../utils/evolutionPdfExport';
 import ReportActions from './ReportActions';
+import { assessmentLabels } from '../utils/assessment';
+import { formatBusinessDate } from '../utils/businessDate';
 
-export default function PerformanceEvolution({ company, sector }: { company?: Company; sector: string }) {
+export default function PerformanceEvolution({ company, sector, sectorFilter }: { company?: Company; sector: string; sectorFilter: ReactNode }) {
     const { user } = useAuth(), client = useQueryClient();
-    const [open, setOpen] = useState(true);
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Cuiaba', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    const [from, setFrom] = useState(`${today.slice(0, 4)}-01`), [to, setTo] = useState(today.slice(0, 7));
+    const currentMonth = today.slice(0, 7);
+    const firstMonth = `${today.slice(0, 4)}-01`;
+    const [from, setFrom] = useState(firstMonth), [to, setTo] = useState(currentMonth);
     const [groupBy, setGroupBy] = useState('month'), [userId, setUserId] = useState('');
     const [processId, setProcessId] = useState(''), [category, setCategory] = useState('');
-    const [compareFrom, setCompareFrom] = useState(''), [compareTo, setCompareTo] = useState(''), [equivalent, setEquivalent] = useState(true);
     const [eventLimit, setEventLimit] = useState(30), [notice, setNotice] = useState('');
     const [eventType, setEventType] = useState('');
     const [sourceId, setSourceId] = useState(''), [referenceId, setReferenceId] = useState(''), [linkReason, setLinkReason] = useState('');
     const [preview, setPreview] = useState<{ sourceCount: number; referenceCount: number; conflicts: string[]; alreadyLinked?: boolean } | null>(null);
+    useEffect(() => { setUserId(''); }, [user?.activeCompanyId]);
     useEffect(() => { setProcessId(''); setCategory(''); setSourceId(''); setReferenceId(''); setPreview(null); }, [sector, user?.activeCompanyId]);
     const isMaster = user?.roles.includes(UserRole.MASTER), canManage = isMaster || user?.roles.includes(UserRole.MANAGER);
-    const params = { from, to, groupBy, sector: sector || undefined, userId: userId || undefined,
-        processId: processId || undefined, category: category || undefined, compareFrom: compareFrom || undefined,
-        compareTo: compareTo || undefined, equivalent: String(equivalent) };
-    const { data, isFetching, isError, error } = useQuery({ queryKey: ['performance-evolution', user?.activeCompanyId, params],
-        queryFn: () => apiCall<EvolutionReport>('get', '/reports/performance-history', params), enabled: open && !!user?.activeCompanyId });
-    const { data: users } = useQuery({ queryKey: ['users', user?.activeCompanyId], queryFn: () => usersApi.list(), enabled: open });
+    const scope = { from, to, sector: sector || undefined, userId: userId || undefined, category: category.trim() || undefined };
+    const scopeKey = JSON.stringify(scope);
+    const validPeriod = !!from && !!to && from <= to;
+    const { data: result, isPlaceholderData, isFetching, isError, error } = useQuery({
+        queryKey: ['performance-evolution', user?.activeCompanyId, scopeKey, groupBy, processId],
+        queryFn: () => apiCall<EvolutionReport>('get', '/reports/performance-history', {
+            ...scope, groupBy, processId: processId || undefined, equivalent: 'true',
+        }),
+        placeholderData: (previous, query) => query && query.queryKey[1] === user?.activeCompanyId
+            && query.queryKey[2] === scopeKey ? previous : undefined,
+        enabled: validPeriod && !!user?.activeCompanyId,
+    });
+    const data = isPlaceholderData ? undefined : result;
+    const processOptions = result?.processOptions ?? result?.records ?? [];
+    const { data: users } = useQuery({ queryKey: ['users', user?.activeCompanyId], queryFn: () => usersApi.list(), enabled: !!user?.activeCompanyId });
     const records = data?.records || [], points = data?.series || [], events = data?.events || [];
     const displayedEvents = eventType ? events.filter(e => e.type === eventType) : events;
     const scopes = getAccessibleSectors(user, company);
-    const comparison = data?.comparison;
     const invalidate = () => client.invalidateQueries({ queryKey: ['performance-evolution'] });
     const milestone = useMutation({ mutationFn: (payload: Record<string, string>) => apiCall('post', '/reports/milestones', payload),
         onSuccess: () => { setNotice('Marco registrado.'); invalidate(); }, onError: (e: Error) => setNotice(e.message) });
@@ -44,42 +55,95 @@ export default function PerformanceEvolution({ company, sector }: { company?: Co
         referenceProcessId: referenceId, reason: linkReason, dryRun, expectedCount: preview?.sourceCount,
     }), onSuccess: (result, dryRun) => { if (dryRun) setPreview(result); else { setPreview(null); setNotice('Vínculo histórico confirmado. Notas e snapshots preservados.'); invalidate(); } },
     onError: (e: Error) => setNotice(e.message) });
-    const resetComparison = () => { setCompareFrom(''); setCompareTo(''); };
-    const recordLabel = (r: typeof records[number]) => `${r.month} · ${r.sector} · ${r.code} — ${r.title}`;
+    const recordLabel = (r: typeof processOptions[number]) => `${r.month} · ${r.sector} · ${r.code} — ${r.title}`;
     const markers = [...new Set(displayedEvents.map(e => {
         const month = eventMonth(e.occurredAt);
         return groupBy === 'quarter' ? `${month.slice(0, 4)}-Q${Math.ceil(Number(month.slice(5)) / 3)}` : month;
     }))];
-    return <details open className="card space-y-4" onToggle={e => setOpen(e.currentTarget.open)}>
-        <summary className="cursor-pointer font-semibold text-lg">Evolução mensal/trimestral, carteira e marcos</summary>
-        {open && <>
-            <p className="text-sm text-gray-500">Competência pelo ciclo. Média por nota válida; entregas e cobertura de avaliações são indicadores separados. No trimestre, volumes somam ocorrências por competência; carteira comum conta processos distintos. Variações de volume não demonstram causa de desempenho.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <label className="text-sm">De<input aria-label="Evolução de" type="month" className="input" value={from} onChange={e => { setFrom(e.target.value); resetComparison(); }} /></label>
-                <label className="text-sm">Até<input aria-label="Evolução até" type="month" className="input" value={to} onChange={e => { setTo(e.target.value); resetComparison(); }} /></label>
-                <label className="text-sm">Agrupar<select className="input" aria-label="Agrupamento da evolução" value={groupBy} onChange={e => { setGroupBy(e.target.value); resetComparison(); }}><option value="month">Mês</option><option value="quarter">Trimestre</option></select></label>
-                <label className="text-sm">Colaborador<select className="input" value={userId} onChange={e => { setUserId(e.target.value); setProcessId(''); }}><option value="">Todos autorizados</option>{users?.map(u => <option key={u._id || u.id} value={u._id || u.id}>{u.name}</option>)}</select></label>
-                <label className="text-sm">Processo<select className="input" value={processId} onChange={e => setProcessId(e.target.value)}><option value="">Todos do recorte</option>{records.map(r => <option key={r.id} value={r.id}>{recordLabel(r)}</option>)}</select></label>
-                <label className="text-sm">Categoria<input className="input" maxLength={100} list="evolution-categories" value={category} onChange={e => setCategory(e.target.value)} /><datalist id="evolution-categories">{data?.categories?.map(c => <option key={c} value={c} />)}</datalist></label>
+    const periodLabel = (value: string) => `${value.slice(5)}/${value.slice(2, 4)}`;
+    const hasAdvancedFilters = !!(userId || processId || category);
+    return <section className="space-y-4" aria-labelledby="evolution-title">
+            <div className="card space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id="evolution-title" className="font-semibold text-lg">Evolução do desempenho</h2>
+                    <button type="button" className="text-sm font-medium text-primary-600" onClick={() => {
+                        setFrom(firstMonth); setTo(currentMonth); setGroupBy('month');
+                        setUserId(''); setProcessId(''); setCategory('');
+                    }}>Restaurar período e filtros da evolução</button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {sectorFilter}
+                    <label className="min-w-0 text-sm">De<input aria-label="Evolução de" type="month" className="input" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); setProcessId(''); }} /></label>
+                    <label className="min-w-0 text-sm">Até<input aria-label="Evolução até" type="month" className="input" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); setProcessId(''); }} /></label>
+                    <label className="min-w-0 text-sm">Agrupar<select className="input" aria-label="Agrupamento da evolução" value={groupBy} onChange={e => setGroupBy(e.target.value)}><option value="month">Mês</option><option value="quarter">Trimestre</option></select></label>
+                </div>
+                <details>
+                    <summary className="cursor-pointer text-sm font-medium">Filtros da evolução{hasAdvancedFilters && ' · ativos'}</summary>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        <label className="min-w-0 text-sm">Colaborador<select className="input" value={userId} onChange={e => { setUserId(e.target.value); setProcessId(''); }}><option value="">Todos autorizados</option>{users?.map(u => <option key={u._id || u.id} value={u._id || u.id}>{u.name}</option>)}</select></label>
+                        <label className="min-w-0 text-sm">Processo<select className="input" value={processId} onChange={e => setProcessId(e.target.value)}><option value="">Todos do recorte</option>{processOptions.map(r => <option key={r.id} value={r.id}>{recordLabel(r)}</option>)}</select></label>
+                        <label className="min-w-0 text-sm">Categoria<input className="input" maxLength={100} list="evolution-categories" value={category} onChange={e => { setCategory(e.target.value); setProcessId(''); }} /><datalist id="evolution-categories">{result?.categories?.map(c => <option key={c} value={c} />)}</datalist></label>
+                    </div>
+                </details>
+                {!validPeriod && <p role="alert" className="text-sm text-red-700">Informe um período válido para consultar a evolução.</p>}
             </div>
             {isFetching && <p role="status" className="text-sm">Atualizando evolução…</p>}
             {isError && <p role="alert" className="text-red-700">{error.message}</p>}
-            {data?.series && <>
+            {validPeriod && data && (points.some(point => point.hasData) ? (
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                    <section className="card min-w-0">
+                        <h3 className="font-semibold">Pontuação e cobertura</h3>
+                        <p className="text-xs text-gray-500">Média das notas válidas e percentual de avaliações</p>
+                        <div className="mt-3 h-56 w-full">
+                            <ResponsiveContainer width="100%" height="100%"><LineChart data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
+                                <XAxis dataKey="period" tick={{ fontSize: 11 }} minTickGap={16} tickFormatter={periodLabel} />
+                                <YAxis width={32} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                                <Tooltip labelFormatter={periodLabel} /><Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                                <Line dataKey="performanceAverage" name="Pontuação média" stroke="#16a34a" strokeWidth={2} isAnimationActive={false} />
+                                <Line dataKey="coveragePct" name="Cobertura (%)" stroke="#2563eb" strokeWidth={2} strokeDasharray="4 4" isAnimationActive={false} />
+                                {markers.map(period => <ReferenceLine key={period} x={period} stroke="#a855f7" strokeDasharray="2 4" />)}
+                            </LineChart></ResponsiveContainer>
+                        </div>
+                    </section>
+                    {processId ? <section className="card min-w-0">
+                        <h3 className="font-semibold">Cobertura por ciclo do processo</h3>
+                        <p className="text-xs text-gray-500">Avaliações dos ciclos registrados no recorte.</p>
+                        <div className="mt-3 max-h-56 overflow-auto">
+                            <table className="table text-xs">
+                                <thead><tr>{['Ciclo', 'Prazo / entrega', 'Avaliação'].map(label => <th key={label}>{label}</th>)}</tr></thead>
+                                <tbody>{data.processCycles?.map(cycle => <tr key={cycle.id}>
+                                    <td><strong>{periodLabel(cycle.month)}</strong><span className="block">{cycle.sector} · {cycle.cycleStatus === CycleStatus.OPEN ? 'Aberto' : 'Encerrado'}</span></td>
+                                    <td><span className="block">Previsto: {formatBusinessDate(cycle.plannedDate)}</span><span className="block">Limite: {formatBusinessDate(cycle.limitDate)}</span><span className="block">Entrega: {cycle.deliveryDate ? formatBusinessDate(cycle.deliveryDate) : 'Sem entrega registrada'}</span></td>
+                                    <td>{cycle.isActive ? assessmentLabels[cycle.assessment] : 'Inativo'}<span className="block">{cycle.coveragePct == null ? 'Fora da cobertura' : `${cycle.coveragePct}% de cobertura`}</span>{cycle.score != null && <span className="block">Nota: {formatPerformanceAverage(cycle.score)}</span>}</td>
+                                </tr>)}</tbody>
+                            </table>
+                        </div>
+                    </section> : <section className="card min-w-0">
+                        <h3 className="font-semibold">Volume de processos</h3>
+                        <p className="text-xs text-gray-500">Ativos e entregues por competência</p>
+                        <div className="mt-3 h-56 w-full">
+                            <ResponsiveContainer width="100%" height="100%"><BarChart data={points} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
+                                <XAxis dataKey="period" tick={{ fontSize: 11 }} minTickGap={16} tickFormatter={periodLabel} />
+                                <YAxis width={36} allowDecimals={false} tick={{ fontSize: 11 }} />
+                                <Tooltip labelFormatter={periodLabel} /><Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                                <Bar dataKey="activeProcessCount" name="Ativos" fill="#2563eb" maxBarSize={24} isAnimationActive={false} />
+                                <Bar dataKey="deliveredCount" name="Entregues" fill="#0d9488" maxBarSize={24} isAnimationActive={false} />
+                            </BarChart></ResponsiveContainer>
+                        </div>
+                    </section>}
+                </div>
+            ) : <p className="card text-sm text-gray-500">Nenhum dado de evolução para os filtros selecionados.</p>)}
+            <details className="card space-y-4">
+                <summary className="cursor-pointer font-semibold">Detalhes da evolução e linha do tempo</summary>
+            <p className="text-xs text-gray-500">As linhas roxas no gráfico marcam períodos com eventos registrados.</p>
+            {validPeriod && data && <>
                 <ReportActions build={() => buildEvolutionPDF({ ...data, events: displayedEvents }, company?.name || 'Empresa', [sector || 'Setores autorizados', users?.find(u => (u._id || u.id) === userId)?.name, category, eventType && `Eventos: ${eventType}`].filter(Boolean).join(' · '), user?.name)} filename={`chronos-evolucao-${from}-${to}.pdf`} disabled={isFetching || isError}
                     emailContext={{ title: 'Evolução de desempenho', period: `${from} a ${to}`, sector }} />
                 {(!!data.warnings.unconfirmedLineageCount || !!data.warnings.legacyResponsibilityCount) && <p className="text-sm text-amber-800 bg-amber-50 rounded p-3">
                     {data.warnings.unconfirmedLineageCount} registros sem identidade histórica confirmada; {data.warnings.legacyResponsibilityCount} notas usam o responsável do documento legado. Novas avaliações preservam o responsável registrado na entrega.
                 </p>}
-                <div className="h-80 w-full" aria-label="Gráfico de desempenho, cobertura e volume">
-                    <ResponsiveContainer width="100%" height="100%"><ComposedChart data={points} margin={{ top: 20, right: 10, left: 0, bottom: 15 }}>
-                        <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" tick={{ fontSize: 11 }} minTickGap={16} tickFormatter={value => String(value).includes('Q') ? `${String(value).slice(5)}/${String(value).slice(2, 4)}` : `${String(value).slice(5)}/${String(value).slice(2, 4)}`} />
-                        <YAxis yAxisId="score" width={36} domain={[0, 100]} tick={{ fontSize: 11 }} /><YAxis yAxisId="volume" width={32} orientation="right" allowDecimals={false} tick={{ fontSize: 11 }} />
-                        <Tooltip /><Legend height={60} iconSize={10} wrapperStyle={{ fontSize: 11 }} /><Bar yAxisId="volume" dataKey="activeProcessCount" name="Processos ativos" fill="#cbd5e1" isAnimationActive={false} maxBarSize={40} />
-                        <Line yAxisId="score" dataKey="performanceAverage" name="Média (0–100)" stroke="#15803d" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
-                        <Line yAxisId="score" dataKey="coveragePct" name="Cobertura de avaliações (%)" stroke="#2563eb" strokeDasharray="4 4" connectNulls={false} isAnimationActive={false} />
-                        {markers.map(period => <ReferenceLine key={period} x={period} yAxisId="score" stroke="#a855f7" strokeDasharray="2 4" label={{ value: 'Evento', position: 'insideTop' }} />)}
-                    </ComposedChart></ResponsiveContainer>
-                </div>
                 <div className="overflow-x-auto"><table className="table text-sm"><thead><tr>{['Período', 'Média / amostra', 'Cobertura', 'Ativos / exigíveis', 'Entregues', 'Variação', 'Inclusões / transferências'].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>
                     {points.map(p => <tr key={p.period}><td>{p.period}{p.partial && <span className="block text-xs text-amber-700">Parcial</span>}{!p.hasData && <span className="block text-xs">Sem registros</span>}</td>
                         <td>{formatPerformanceAverage(p.performanceAverage)}<span className="block text-xs">{performanceSampleLabel(p)} · {p.observedMonths} mês(es) avaliado(s)</span></td>
@@ -89,15 +153,6 @@ export default function PerformanceEvolution({ company, sector }: { company?: Co
                         <td>{p.deltaPoints == null ? 'Sem comparação' : `${p.deltaPoints > 0 ? '+' : ''}${p.deltaPoints} pontos`}<span className="block text-xs">Volume: {p.processVolumeDelta == null ? '—' : `${p.processVolumeDelta > 0 ? '+' : ''}${p.processVolumeDelta}`}</span></td><td>{p.newProcessCount ?? 'Limitado'} / {p.transferCount ?? 'Limitado'}</td></tr>)}
                 </tbody></table></div>
                 <p className="text-xs text-gray-500">{data.warnings.deadlinePolicy} Não aplicáveis e inativos ficam fora da cobertura. Inclusões/transferências contam eventos com evidência na data registrada.</p>
-                <section className="rounded-lg border p-4 space-y-3"><h3 className="font-semibold">Comparar períodos</h3><div className="flex flex-wrap gap-3">
-                    <label className="text-sm">Anterior<select aria-label="Período anterior" className="input" value={compareFrom || comparison?.from || ''} onChange={e => setCompareFrom(e.target.value)}>{points.map(p => <option key={p.period} value={p.period}>{p.period}</option>)}</select></label>
-                    <label className="text-sm">Atual<select aria-label="Período atual" className="input" value={compareTo || comparison?.to || ''} onChange={e => setCompareTo(e.target.value)}>{points.map(p => <option key={p.period} value={p.period}>{p.period}</option>)}</select></label>
-                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={equivalent} onChange={e => setEquivalent(e.target.checked)} />Somente carteira equivalente</label></div>
-                    {comparison ? <><p>{formatPerformanceAverage(comparison.previous.performanceAverage)} → {formatPerformanceAverage(comparison.current.performanceAverage)} · {comparison.deltaPoints == null ? 'Sem dados para variação' : `${comparison.deltaPoints > 0 ? '+' : ''}${comparison.deltaPoints} pontos na escala 0–100`}. Carteira comum: {comparison.commonProcessCount} processos.</p>
-                        {(comparison.compositionChanged || comparison.partialPeriods) && <p className="text-sm text-amber-800">A carteira mudou ou há período parcial. Confira amostra e exclusões antes de comparar.</p>}
-                        <details><summary className="cursor-pointer text-sm">Itens fora da carteira comum ({comparison.excluded.length})</summary><ul className="max-h-60 overflow-auto text-sm space-y-1">{comparison.excluded.map((r, i) => <li key={`${r.processId}-${i}`}>{r.period} · {r.code} · {r.title}: {r.reason.replaceAll('_', ' ').toLowerCase()}</li>)}</ul></details></>
-                        : <p className="text-sm">Selecione um intervalo com pelo menos dois períodos.</p>}
-                </section>
                 <section className="space-y-3"><h3 className="font-semibold">Linha do tempo</h3>
                     <label className="block text-sm max-w-sm">Filtrar linha do tempo<select aria-label="Tipo de evento" className="input" value={eventType} onChange={e => { setEventType(e.target.value); setEventLimit(30); }}>
                         <option value="">Todos os eventos</option>{[...new Set(events.map(e => e.type))].sort().map(type => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
@@ -133,6 +188,6 @@ export default function PerformanceEvolution({ company, sector }: { company?: Co
                     {!preview.alreadyLinked && !preview.conflicts.length && <button className="btn-primary" disabled={link.isPending} onClick={() => link.mutate(false)}>Confirmar vínculo revisado</button>}
                 </div>}
             </details>}
-        </>}
-    </details>;
+            </details>
+    </section>;
 }

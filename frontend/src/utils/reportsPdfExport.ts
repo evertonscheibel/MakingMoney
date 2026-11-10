@@ -31,11 +31,12 @@ export function buildDetailedReportPDF(data: OperationalReportData) {
     report.metrics([
         { label: 'PROCESSOS', value: String(total) },
         { label: 'PONTUAÇÃO MÉDIA', value: formatPerformanceAverage(data.summary.kpis.performanceAverage) },
-        { label: 'NO PRAZO', value: `${formatReportNumber(data.summary.kpis.onTimePct)}%` },
+        { label: 'NO PRAZO', value: data.summary.kpis.totalProcesses ? `${formatReportNumber(data.summary.kpis.onTimePct)}%` : '—' },
         { label: 'ATRASADOS', value: String(data.summary.kpis.lateCount) },
         { label: 'CRÍTICOS', value: String(data.summary.kpis.criticalCount) },
     ]);
     report.text(`${performanceSampleLabel(data.summary.kpis)}. ${deliveryRatioLabel(data.summary.kpis)}.`);
+    report.text(`No prazo: ${data.summary.kpis.onTimeCount} de ${data.summary.kpis.totalProcesses} processos ativos no resumo. O extrato lista os processos que o usuário pode consultar.`);
     report.text(coverageLabel(data.summary.kpis));
     report.text('Os indicadores correspondem aos filtros selecionados. Pontuação média considera os processos avaliados. Datas operacionais representam o dia de calendário.');
     report.heading('02  Distribuição por setor');

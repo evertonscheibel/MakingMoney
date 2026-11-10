@@ -49,8 +49,8 @@ export default function ProcessList() {
     const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
     const [emailTo, setEmailTo] = useState(''); // Controlled state for email recipient
     const [search, setSearch] = useState('');
-    const [sectorFilter, setSectorFilter] = useState('');
     const [searchParams] = useSearchParams();
+    const [sectorFilter, setSectorFilter] = useState(searchParams.get('sector') || '');
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
     const [assessmentFilter, setAssessmentFilter] = useState('');
     const [activityFilter, setActivityFilter] = useState('');

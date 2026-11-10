@@ -90,9 +90,9 @@ export default function BonusReport() {
 
     const filteredSectors = useMemo(() => {
         if (!report) return [];
-        if (statusFilter === 'qualified') return report.sectors.filter(s => s.qualified);
-        if (statusFilter === 'blocked') return report.sectors.filter(s => !s.qualified);
-        return report.sectors;
+        return report.sectors
+            .filter(sector => statusFilter === 'all' || sector.qualified === (statusFilter === 'qualified'))
+            .sort((a, b) => Number(a.qualified) - Number(b.qualified) || a.avgScore - b.avgScore);
     }, [report, statusFilter]);
 
     const buildDocument = () => {
@@ -129,7 +129,7 @@ export default function BonusReport() {
                         )}
                     </div>
                     <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                        Bônus = ({report?.calculationMode === BonusCalculationMode.SECTOR ? 'Média do Setor' : 'Média Individual'} ÷ 100) × (Salário Bruto ÷ 4) — Setor ≥ 75% para liberar
+                        Bônus = ({selectedMode === BonusCalculationMode.SECTOR ? 'Média do Setor' : 'Média Individual'} ÷ 100) × (Salário Bruto ÷ 4) — Setor ≥ 75% para liberar
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -208,8 +208,8 @@ export default function BonusReport() {
                 <div className="flex items-start gap-3">
                     <TrendingUp className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-amber-800 dark:text-amber-300">
-                        <strong>Regra:</strong> Setor com média trimestral ≥ <strong>75%</strong> libera o bônus.
-                        Cálculo atual: <strong>({report?.calculationMode === BonusCalculationMode.SECTOR ? 'Média do Setor' : 'Média Individual'} ÷ 100) × (Salário Bruto ÷ 4)</strong>.
+                        <strong>Meta do setor</strong> · {report ? `${report.sectorMinScore.toLocaleString('pt-BR')} pontos para liberar o bônus.` : 'Carregando a regra do trimestre.'}
+                        Cálculo atual: <strong>({selectedMode === BonusCalculationMode.SECTOR ? 'Média do Setor' : 'Média Individual'} ÷ 100) × (Salário Bruto ÷ 4)</strong>.
                     </div>
                 </div>
             </div>
@@ -218,21 +218,22 @@ export default function BonusReport() {
                 <div className="flex justify-center py-16"><div className="animate-spin h-8 w-8 border-b-2 border-primary-600 rounded-full" /></div>
             ) : report ? (
                 <>
-                    {/* ── Summary KPIs ── */}
+                    <p className="text-xs text-gray-500">O resumo considera trimestre, setor e modo de cálculo. O filtro de situação afeta o detalhamento, e a busca por nome afeta a lista de colaboradores.</p>
                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        <KpiCard icon={<DollarSign className="w-5 h-5" />} label="Total a Pagar" value={fmt(report.summary.totalBonus)} color="blue" />
-                        <KpiCard icon={<Target className="w-5 h-5" />} label="Média Geral" value={`${report.summary.avgScore.toFixed(1)}%`} color="emerald" />
-                        <KpiCard icon={<CheckCircle2 className="w-5 h-5" />} label="Qualificados" value={`${report.summary.qualifiedSectors}/${report.summary.totalSectors}`} color="violet" />
-                        <KpiCard icon={<XCircle className="w-5 h-5" />} label="Bloqueados" value={`${report.summary.totalSectors - report.summary.qualifiedSectors}`} color="red" />
+                        <KpiCard icon={<DollarSign className="w-5 h-5" />} label="Bônus calculado" value={fmt(report.summary.totalBonus)} color="blue" />
+                        <KpiCard icon={<Target className="w-5 h-5" />} label="Média dos colaboradores" value={report.summary.userCount ? `${report.summary.avgScore.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} pts` : '—'} color="emerald" />
+                        <KpiCard icon={<CheckCircle2 className="w-5 h-5" />} label="Setores qualificados" value={`${report.summary.qualifiedSectors}/${report.summary.totalSectors}`} color="violet" />
+                        <KpiCard icon={<XCircle className="w-5 h-5" />} label="Setores bloqueados" value={`${report.summary.totalSectors - report.summary.qualifiedSectors}`} color="red" />
                         <KpiCard icon={<Users className="w-5 h-5" />} label="Colaboradores" value={`${report.summary.userCount}`} color="orange" />
                     </div>
 
                     {/* ── Sector Overview ── */}
                     {viewMode === 'overview' && filteredSectors.length > 0 && (
                         <div className="card">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
                                 <BarChart3 className="w-5 h-5 text-gray-400" /> Situação por Setor
                             </h2>
+                            <p className="mb-4 text-xs text-gray-500">Setores bloqueados aparecem primeiro. O marcador na barra indica a meta do trimestre.</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {filteredSectors.map((s: BonusSectorSummary) => (
                                     <SectorCard key={s.name} sector={s} minScore={report.sectorMinScore} />
@@ -271,8 +272,8 @@ export default function BonusReport() {
                                                 <td className="py-2.5 text-sm text-gray-500">{u.sector}</td>
                                                 <td className="py-2.5 text-right text-sm text-gray-600 dark:text-gray-400 font-mono">{fmt(u.baseSalary)}</td>
                                                 <td className="py-2.5 text-right text-sm text-gray-600 dark:text-gray-400 font-mono">{fmt(u.quarterBase)}</td>
-                                                <td className="py-2.5 text-center"><span className={`font-bold text-sm ${scoreColor(u.avgScore, u.sectorQualified)}`}>{u.avgScore.toFixed(1)}%</span></td>
-                                                <td className="py-2.5 text-center"><span className={`font-semibold text-sm ${u.sectorQualified ? 'text-emerald-600' : 'text-red-600'}`}>{u.sectorAvgScore.toFixed(1)}%</span></td>
+                                                <td className="py-2.5 text-center"><span className={`font-bold text-sm ${scoreColor(u.avgScore, u.sectorQualified)}`}>{u.avgScore.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} pts</span></td>
+                                                <td className="py-2.5 text-center"><span className={`font-semibold text-sm ${u.sectorQualified ? 'text-emerald-600' : 'text-red-600'}`}>{u.sectorAvgScore.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} pts</span></td>
                                                 <td className="py-2.5 text-center">
                                                     {u.sectorQualified
                                                         ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"><CheckCircle2 className="w-3 h-3" />Liberado</span>
@@ -338,10 +339,13 @@ function SectorCard({ sector, minScore }: { sector: BonusSectorSummary; minScore
             {/* Progress bar */}
             <div className="relative w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-3 overflow-hidden">
                 <div className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${sector.qualified ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                <div className="absolute top-0 h-full border-r-2 border-gray-800 dark:border-white" style={{ left: `${minScore}%` }} title={`Mínimo: ${minScore}%`} />
+                <div className="absolute top-0 h-full border-r-2 border-gray-800 dark:border-white" style={{ left: `${minScore}%` }} title={`Meta: ${minScore} pontos`} />
             </div>
-            <div className="grid grid-cols-4 gap-1 text-center text-xs">
-                <div><p className={`text-base font-bold ${sector.qualified ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{sector.avgScore.toFixed(1)}%</p><p className="text-gray-500 text-[10px]">Média</p></div>
+            <p className="mb-3 text-xs text-gray-600 dark:text-gray-300">
+                {sector.qualified ? 'Meta atingida' : `Faltam ${Math.max(0, minScore - sector.avgScore).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} pontos para a meta`}
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
+                <div><p className={`text-base font-bold ${sector.qualified ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{sector.avgScore.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} pts</p><p className="text-gray-500 text-[10px]">Média</p></div>
                 <div><p className="text-base font-bold text-gray-700 dark:text-gray-300">{sector.processCount}</p><p className="text-gray-500 text-[10px]">Processos</p></div>
                 <div><p className="text-base font-bold text-gray-700 dark:text-gray-300">{sector.userCount}</p><p className="text-gray-500 text-[10px]">Operadores</p></div>
                 <div><p className={`text-base font-bold ${sector.qualified ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400'}`}>{fmt(sector.totalBonus)}</p><p className="text-gray-500 text-[10px]">Bônus</p></div>

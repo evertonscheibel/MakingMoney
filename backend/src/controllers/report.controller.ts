@@ -7,7 +7,7 @@ import { asyncHandler, AppError, NotFoundError, UnauthorizedError, ForbiddenErro
 import { getCompanySectorScope } from '../utils/processAccess';
 import { calculatePerformance, performanceAccumulators, performanceFromTotals } from '../utils/performance';
 import { assessmentIndicators, assessmentAccumulators, coverageFromTotals, serializeAssessment, assessmentStates, assessmentExpression } from '../utils/assessment';
-import { CycleStatus, ProcessStatus, UserRole } from '../types';
+import { CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
 import { calculatePercentage, getEffectiveSectors, isSectorManager } from '../utils';
 
 export const reportValidation = [
@@ -580,28 +580,32 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
         filter.sector = sector;
     }
 
-    if (globalRoles.includes(UserRole.OPERATOR) && !isAdminOrMaster && !globalRoles.includes(UserRole.MANAGER)) {
-        if (filterUserId) { filter.responsibleUserId = filterUserId; } else { filter.responsibleUserId = userId; }
+    if (!isAdminOrMaster && companyRole !== UserRole.MANAGER) {
+        filter.responsibleUserId = userId;
     } else if (filterUserId) {
         filter.responsibleUserId = filterUserId;
     }
 
     const processes = await Process.find(filter).populate('responsibleUserId', 'name');
-
+    const asOf = businessToday();
+    // Planned and manual delivery dates are calendar days. Email deliveries are timestamps.
+    const rows = processes.map(process => ({
+        process,
+        planned: process.plannedDate.toISOString().slice(0, 10),
+        limit: process.limitDate.toISOString().slice(0, 10),
+        delivered: process.deliveryDate && process.deliverySource === DeliverySource.EMAIL
+            ? businessToday(process.deliveryDate) : process.deliveryDate?.toISOString().slice(0, 10),
+    }));
     const series = [];
-    for (let d = 1; d <= lastDay; d++) {
-        const currentDate = new Date(Date.UTC(year, month - 1, d, 23, 59, 59, 999));
-        const planned = processes.filter(p => p.plannedDate <= currentDate).length;
-        const realized = processes.filter(p => p.deliveryDate && p.deliveryDate <= currentDate).length;
-        const delayed = Math.max(0, planned - realized);
-        const critical = processes.filter(p => {
-            const isPastLimit = currentDate > p.limitDate;
-            const notDeliveredByD = !p.deliveryDate || p.deliveryDate > currentDate;
-            const deliveredLateBeforeD = p.deliveryDate && p.deliveryDate > p.limitDate && p.deliveryDate <= currentDate;
-            return (isPastLimit && notDeliveredByD) || deliveredLateBeforeD;
-        }).length;
-
-        series.push({ day: d, date: currentDate.toISOString().split('T')[0], planned, realized, delayed, critical });
+    for (let day = 1; day <= lastDay; day++) {
+        const date = `${period}-${String(day).padStart(2, '0')}`;
+        const planned = rows.filter(row => row.planned <= date).length;
+        const realized = rows.filter(row => row.delivered && row.delivered <= date).length;
+        const open = rows.filter(row => !row.delivered || row.delivered > date);
+        const delayedOpen = open.filter(row => row.planned < date && row.limit >= date).length;
+        const overdueOpen = open.filter(row => row.limit < date).length;
+        const critical = overdueOpen + rows.filter(row => row.delivered && row.delivered > row.limit && row.delivered <= date).length;
+        series.push({ day, date, planned, realized, delayed: Math.max(0, planned - realized), critical, delayedOpen, overdueOpen });
     }
 
     const totalPlanned = processes.length;
@@ -609,27 +613,39 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
     const performance = { ...calculatePerformance(processes), ...assessmentIndicators(processes) };
     const avgScore = performance.performanceAverage ?? 0;
     const onTimePct = calculatePercentage(onTimeCount, totalPlanned);
-
-    const criticalItems = processes.filter(p => p.status === ProcessStatus.CRITICAL).map(p => ({
-        code: p.code, title: p.title, sector: p.sector, plannedDate: p.plannedDate, limitDate: p.limitDate, deliveryDate: p.deliveryDate, responsible: (p.responsibleUserId as any)?.name || 'N/A',
-    }));
-
-    // Non-cumulative delivery outcome per process, from Cuiabá calendar dates (independent of configured point values).
     const bands = [
         { key: 'EARLY', label: 'Antes do planejado', count: 0 },
         { key: 'ON_PLANNED', label: 'Na data planejada', count: 0 },
         { key: 'LATE', label: 'Após o planejado, até o limite', count: 0 },
-        { key: 'CRITICAL', label: 'Após o limite (crítico)', count: 0 },
-        { key: 'PENDING', label: 'Sem entrega', count: 0 },
+        { key: 'CRITICAL', label: 'Entregue após o limite', count: 0 },
+        { key: 'OVERDUE', label: 'Sem entrega, limite vencido', count: 0 },
+        { key: 'PENDING', label: 'Sem entrega, dentro do limite', count: 0 },
     ];
-    const today = businessToday();
-    for (const p of processes) {
-        const planned = businessToday(p.plannedDate), limit = businessToday(p.limitDate);
-        const delivered = p.deliveryDate ? businessToday(p.deliveryDate) : null;
-        const index = delivered == null ? (today > limit ? 3 : 4)
+    const criticalItems = [];
+    const sectorRisk = new Map<string, { sector: string; delayedOpen: number; overdueOpen: number }>();
+    for (const { process, planned, limit, delivered } of rows) {
+        const index = delivered == null ? (asOf > limit ? 4 : 5)
             : delivered < planned ? 0 : delivered === planned ? 1 : delivered <= limit ? 2 : 3;
         bands[index].count++;
+        if (!delivered && asOf > planned) {
+            const risk = sectorRisk.get(process.sector) ?? { sector: process.sector, delayedOpen: 0, overdueOpen: 0 };
+            if (asOf > limit) risk.overdueOpen++;
+            else risk.delayedOpen++;
+            sectorRisk.set(process.sector, risk);
+        }
+        if (index === 3 || index === 4) {
+            criticalItems.push({
+                id: String(process._id), code: process.code, title: process.title, sector: process.sector,
+                plannedDate: planned, limitDate: limit, deliveryDate: delivered ?? null,
+                responsible: (process.responsibleUserId as any)?.name || 'Não informado',
+            });
+        }
     }
-
-    res.json({ success: true, data: { series, deliveryBreakdown: bands, kpis: { totalPlanned, onTimePct, avgScore, ...performance }, criticalItems } });
+    criticalItems.sort((a, b) => Number(!!a.deliveryDate) - Number(!!b.deliveryDate) || a.limitDate.localeCompare(b.limitDate));
+    const riskBySector = [...sectorRisk.values()].sort((a, b) =>
+        b.overdueOpen - a.overdueOpen || b.delayedOpen - a.delayedOpen || a.sector.localeCompare(b.sector));
+    res.json({ success: true, data: {
+        asOf, series, deliveryBreakdown: bands, riskBySector,
+        kpis: { totalPlanned, onTimePct, avgScore, ...performance }, criticalItems,
+    } });
 });

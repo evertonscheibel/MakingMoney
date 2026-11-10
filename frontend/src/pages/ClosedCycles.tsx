@@ -1,33 +1,17 @@
 import { formatBusinessDate } from '../utils/businessDate';
 import { getAccessibleSectors } from '../utils/companyAccess';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { cyclesApi, processesApi, companiesApi } from '../api';
 import { Calendar, TrendingUp, Award, AlertCircle, Eye, RefreshCw, Filter } from 'lucide-react';
 import { useAuth } from '../contexts';
 import { UserRole } from '../types';
-import type { PerformanceIndicators } from '../types';
+import type { Cycle } from '../types';
 import PerformanceDetails from '../components/PerformanceDetails';
 import { formatPerformanceAverage } from '../utils/performance';
 
-interface Cycle {
-    _id: string;
-    month: string;
-    status: string;
-    closedAt?: string;
-    sector?: string;
-    kpis?: Partial<PerformanceIndicators> & {
-        avgScore: number;
-        onTimePct: number;
-        criticalCount: number;
-        totalProcesses: number;
-        avgDeviationDays: number;
-    };
-}
-
 export default function ClosedCycles() {
-    const [cycles, setCycles] = useState<Cycle[]>([]);
-    const [loading, setLoading] = useState(true);
     const [selectedCycle, setSelectedCycle] = useState<string | null>(null);
     const [selectedSector, setSelectedSector] = useState<string | undefined>(undefined);
     const [processes, setProcesses] = useState<any[]>([]);
@@ -42,26 +26,17 @@ export default function ClosedCycles() {
         enabled: !!user?.activeCompanyId,
     });
 
-    useEffect(() => {
-        loadClosedCycles();
-    }, [selectedSector, user?.activeCompanyId]);
-
-    const loadClosedCycles = async () => {
-        try {
-            setLoading(true);
-            const data = await cyclesApi.list({ status: 'CLOSED', sector: selectedSector });
-            setCycles(data as any);
-        } catch (error) {
-            console.error('Failed to load closed cycles:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { data: cycles, isLoading: loading, isError, refetch: loadClosedCycles } = useQuery<Cycle[]>({
+        queryKey: ['closed-cycles', user?.activeCompanyId, selectedSector],
+        queryFn: () => cyclesApi.list({ status: 'CLOSED', sector: selectedSector }),
+        enabled: !!user?.activeCompanyId,
+        refetchOnMount: 'always',
+    });
 
     // Consolidation Logic
     const consolidatedCycles = useMemo(() => {
         // Strict filter to ensure only CLOSED cycles are displayed in history
-        const closedCycles = cycles.filter(c => c.status === 'CLOSED');
+        const closedCycles = (cycles ?? []).filter(c => c.status === 'CLOSED');
 
         if (selectedSector) return closedCycles;
 
@@ -188,6 +163,14 @@ export default function ClosedCycles() {
         );
     }
 
+    const recent = [...consolidatedCycles]
+        .sort((a, b) => b.month.localeCompare(a.month)).slice(0, 6).reverse()
+        .map(cycle => ({
+            month: formatMonth(cycle.month),
+            score: cycle.kpis?.aggregationVersion === 1 ? cycle.kpis.performanceAverage ?? null : null,
+            coverage: cycle.kpis?.assessmentVersion === 1 ? cycle.kpis.coveragePct ?? null : null,
+        }));
+
     if (selectedCycle) {
         const cycle = consolidatedCycles.find((c: any) => c._id === selectedCycle);
         return (
@@ -289,7 +272,25 @@ export default function ClosedCycles() {
                 )}
             </div>
 
-            {consolidatedCycles.length === 0 ? (
+            {recent.some(point => point.score != null || point.coverage != null) && (
+                <section className="card min-w-0">
+                    <h2 className="text-lg font-semibold">Últimos fechamentos</h2>
+                    <p className="text-xs text-gray-500">Até seis competências fechadas. Cada mês reúne os setores fechados no recorte. Barras ausentes indicam dados comparáveis indisponíveis.</p>
+                    <div className="mt-3 h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={recent} margin={{ right: 12 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
+                                <XAxis dataKey="month" /><YAxis width={38} domain={[0, 100]} />
+                                <Tooltip formatter={(value, name) => `${formatPerformanceAverage(Number(value))}${name === 'Cobertura' ? '%' : ' pts'}`} />
+                                <Legend />
+                                <Bar dataKey="score" name="Nota média" fill="#0d9488" maxBarSize={24} isAnimationActive={false} />
+                                <Bar dataKey="coverage" name="Cobertura" fill="#2563eb" maxBarSize={24} isAnimationActive={false} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </section>
+            )}
+            {isError ? <p role="alert" className="card text-sm text-danger-600">Não foi possível consultar os fechamentos.</p> : consolidatedCycles.length === 0 ? (
                 <div className="card text-center py-12">
                     <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">Nenhum ciclo fechado encontrado</p>
@@ -335,10 +336,10 @@ export default function ClosedCycles() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <TrendingUp className="w-4 h-4" />
-                                            <span>No Prazo</span>
+                                            <span>No prazo entre os processos do ciclo</span>
                                         </div>
                                         <span className="font-semibold text-green-600">
-                                            {cycle.kpis.onTimePct.toFixed(1)}%
+                                            {cycle.kpis.totalProcesses ? `${formatPerformanceAverage(cycle.kpis.onTimePct)}%` : '—'}
                                         </span>
                                     </div>
 

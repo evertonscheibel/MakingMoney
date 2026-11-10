@@ -2,12 +2,12 @@ import { createReportDocument, formatReportNumber } from './reportDocument';
 import type { ProcessPerformanceReport } from '../types/processPerformance';
 import { monthLabel } from './processPerformance';
 
-export function buildProcessPerformancePDF(data: ProcessPerformanceReport, meta: { companyName: string; sector?: string; search?: string; issuedBy?: string }) {
+export function buildProcessPerformancePDF(data: ProcessPerformanceReport, meta: { companyName: string; sector?: string; search?: string; onlyDrops?: boolean; issuedBy?: string }) {
     const report = createReportDocument({
         title: 'Desempenho de processos', companyName: meta.companyName,
         period: `${monthLabel(data.from)} a ${monthLabel(data.to)}`,
         scope: meta.sector || 'Todos os setores autorizados',
-        filters: meta.search ? `Busca: ${meta.search}` : 'Todos os processos',
+        filters: [meta.search && `Busca: ${meta.search}`, meta.onlyDrops && 'Somente processos com queda na última avaliação'].filter(Boolean).join(' · ') || 'Todos os processos',
         issuedBy: meta.issuedBy,
     });
     report.heading('01  Pontuação por ciclo');

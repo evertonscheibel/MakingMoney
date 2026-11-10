@@ -100,6 +100,31 @@ describe('Estados e cobertura de avaliação', () => {
 });
 
 describe('Série mensal/trimestral e carteira equivalente', () => {
+    it('mantém opções do recorte ao trocar processos e mostra cobertura de cada ciclo vinculado', async () => {
+        const jan = await cycle('2026-01');
+        const feb = await cycle('2026-02');
+        const root = await process(jan, '001', 0);
+        const linked = await process(feb, '001', null, { lineageId: root._id, assessmentRequired: false });
+        const other = await process(jan, '002', 90);
+        const hidden = await process(await cycle('2026-01', 'RH'), '003', 100);
+        role(UserRole.MANAGER);
+
+        const selected = await request(app).get('/evolution').query({
+            ...range, groupBy: 'quarter', processId: String(root._id),
+        }).expect(200);
+        expect(selected.body.data.processOptions.map((row: any) => row.id).sort()).toEqual(
+            [root, linked, other].map(row => String(row._id)).sort(),
+        );
+        expect(selected.body.data.processCycles).toMatchObject([
+            { id: String(root._id), month: '2026-01', score: 0, assessment: 'AVALIADO', coveragePct: 100 },
+            { id: String(linked._id), month: '2026-02', assessment: 'NAO_APLICAVEL', coveragePct: null },
+        ]);
+
+        const switched = await request(app).get('/evolution').query({ ...range, processId: String(other._id) }).expect(200);
+        expect(switched.body.data.processCycles).toMatchObject([{ id: String(other._id), score: 90 }]);
+        await request(app).get('/evolution').query({ ...range, processId: String(hidden._id) }).expect(404);
+    });
+
     it('trimestre pondera pelas avaliações e mantém lacunas como null', async () => {
         await process(await cycle('2026-01'), '001', 100);
         const c = await cycle('2026-03'); await process(c, '001', 0); await process(c, '002', 0); await process(c, '003', 0);

@@ -2,28 +2,12 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, companiesApi, usersApi } from '../api';
 import { useAuth } from '../contexts';
-import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Legend,
-    BarChart,
-    Bar,
-    Cell,
-    PieChart,
-    Pie,
-    LabelList,
-} from 'recharts';
+import ProcessCurveChart from '../components/ProcessCurveChart';
 import {
     TrendingUp,
     CheckCircle2,
     AlertTriangle,
     Calendar,
-    Filter,
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
@@ -31,45 +15,34 @@ import ReportActions from '../components/ReportActions';
 import { buildCurvePDF } from '../utils/curvePdfExport';
 import { reportFilename } from '../utils/reportDocument';
 import { UserRole } from '../types';
-import PerformanceDetails from '../components/PerformanceDetails';
+import { getAccessibleSectors } from '../utils/companyAccess';
+import { formatBusinessDate } from '../utils/businessDate';
 import { formatPerformanceAverage } from '../utils/performance';
 
 const DELIVERY_COLORS: Record<string, string> = {
-    EARLY: '#2563eb', ON_PLANNED: '#3b82f6', LATE: '#eab308', CRITICAL: '#ef4444', PENDING: '#9ca3af',
+    EARLY: '#0d9488', ON_PLANNED: '#2563eb', LATE: '#d97706', CRITICAL: '#ea580c', OVERDUE: '#dc2626', PENDING: '#64748b',
 };
+
+const percent = (numerator: number, denominator: number) => denominator
+    ? (numerator / denominator).toLocaleString('pt-BR', { style: 'percent', maximumFractionDigits: 1 }) : '—';
 
 export default function ProcessCurveReport() {
     const { user } = useAuth();
-    const [period, setPeriod] = useState(() => {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    });
-    const [selectedSector, setSelectedSector] = useState<string>('');
-    const [selectedUserId, setSelectedUserId] = useState<string>('');
-    const [breakdownChart, setBreakdownChart] = useState<'bar' | 'pie'>('bar');
+    const [period, setPeriod] = useState(() => new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Cuiaba', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date()).slice(0, 7));
+    const [selectedSector, setSelectedSector] = useState('');
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const isOperator = user?.roles.includes(UserRole.OPERATOR);
 
-    const isOperator = user?.roles.includes(UserRole.OPERATOR) && !user?.roles.includes(UserRole.MASTER) && !user?.roles.includes(UserRole.MANAGER);
-    const isStrictManager = user?.roles.includes(UserRole.MANAGER) && !user?.roles.includes(UserRole.MASTER);
-
-    // Get all allowed sectors for the user
-    const allowedSectors = [
-        ...(user?.sectors || []),
-        ...(user?.sector ? [user.sector] : [])
-    ];
-
-    // Force sector for operators and strict managers if they have assigned sectors
-    // If they have multiple, the first one is used as default, or they can maybe select from their allowed ones?
-    // For now, let's just make it more resilient.
-    const effectiveSector = (isOperator || isStrictManager)
-        ? (selectedSector && allowedSectors.includes(selectedSector) ? selectedSector : (allowedSectors[0] || ''))
-        : selectedSector;
-
-    // Fetch active company to get sectors list (only for Admins/Masters who can switch sectors)
     const { data: company } = useQuery({
         queryKey: ['company', user?.activeCompanyId],
         queryFn: () => companiesApi.get(user!.activeCompanyId!.toString()),
         enabled: !!user?.activeCompanyId,
     });
+
+    const sectors = getAccessibleSectors(user, company);
+    const effectiveSector = sectors.some(sector => sector.name === selectedSector) ? selectedSector : '';
 
     const { data: users } = useQuery({
         queryKey: ['users', user?.activeCompanyId],
@@ -108,55 +81,36 @@ export default function ProcessCurveReport() {
         setPeriod(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-        );
-    }
-
-    const kpis = [
-        {
-            name: 'Total Planejado',
-            value: curveData?.kpis.totalPlanned || 0,
-            icon: Calendar,
-            color: 'text-primary-600',
-            bgColor: 'bg-primary-50',
-        },
-        {
-            name: 'Entregues',
-            value: curveData?.kpis.deliveredCount || 0,
-            icon: CheckCircle2,
-            color: 'text-success-600',
-            bgColor: 'bg-success-50',
-        },
-        {
-            name: '% no Prazo',
-            value: `${curveData?.kpis.onTimePct || 0}%`,
-            icon: TrendingUp,
-            color: 'text-indigo-600',
-            bgColor: 'bg-indigo-50',
-        },
-        {
-            name: 'Pontuação Média',
-            value: formatPerformanceAverage(curveData?.kpis.performanceAverage),
-            icon: TrendingUp,
-            color: 'text-warning-600',
-            bgColor: 'bg-warning-50',
-        },
-    ];
+    const kpis = curveData?.kpis;
+    const breakdown = curveData?.deliveryBreakdown ?? [];
+    const count = (key: string) => breakdown.find(item => item.key === key)?.count ?? 0;
+    const timely = count('EARLY') + count('ON_PLANNED');
+    const risk = curveData?.riskBySector ?? [];
+    const overdue = risk.reduce((sum, row) => sum + row.overdueOpen, 0);
+    const delayed = risk.reduce((sum, row) => sum + row.delayedOpen, 0);
+    const series = (curveData?.series ?? []).map(point => ({
+        ...point, realized: point.date <= curveData!.asOf ? point.realized : null,
+    }));
+    const observed = series.filter(point => point.realized !== null);
+    const lastObserved = observed.at(-1);
+    const stats = kpis ? [
+        { label: 'Entregas registradas', value: percent(kpis.deliveredCount, kpis.totalPlanned), detail: `${kpis.deliveredCount} de ${kpis.totalPlanned} processos planejados`, icon: CheckCircle2 },
+        { label: 'Pontualidade das entregas', value: percent(timely, kpis.deliveredCount), detail: `${timely} de ${kpis.deliveredCount} entregas até a data planejada`, icon: Calendar },
+        { label: 'Pendências em atraso', value: delayed + overdue, detail: `${delayed} após o planejado · ${overdue} com limite vencido`, icon: AlertTriangle },
+        { label: 'Cobertura de avaliações', value: percent(kpis.assessedEligibleCount ?? 0, kpis.eligibleCount ?? 0), detail: `${kpis.assessedEligibleCount ?? 0} de ${kpis.eligibleCount ?? 0} exigíveis · Nota média ${formatPerformanceAverage(kpis.performanceAverage)} (n=${kpis.validScoreCount})`, icon: TrendingUp },
+    ] : [];
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Relatório Curva de Processo</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Entregas por status e indicadores de atraso no mês.</p>
+                    <p className="text-gray-500 dark:text-gray-400">Acompanhe o plano, o ritmo das entregas e os prazos que exigem atenção.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                     <button
+                        aria-label="Mês anterior"
                         onClick={handlePrevMonth}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     >
@@ -166,6 +120,7 @@ export default function ProcessCurveReport() {
                         {period}
                     </span>
                     <button
+                        aria-label="Próximo mês"
                         onClick={handleNextMonth}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                     >
@@ -176,134 +131,97 @@ export default function ProcessCurveReport() {
 
             <ReportActions build={buildDocument} emailContext={{ title: 'Curva de processos', period, sector: effectiveSector }} filename={reportFilename('curva_processos', period)} disabled={!company || !curveData || isFetching || isError} />
             {isError && <p role="alert" className="text-sm text-red-700">Não foi possível carregar a curva de processos. Recarregue a página para tentar novamente.</p>}
-            {/* Filters */}
-            <div className="card flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
-                </div>
-
-                {(isStrictManager || (!isOperator && !isStrictManager)) && (
-                    <select
-                        value={effectiveSector}
-                        onChange={(e) => setSelectedSector(e.target.value)}
-                        className="input py-1.5 w-auto"
-                    >
-                        {(!isStrictManager) && <option value="">Todos os Setores</option>}
-                        {(isStrictManager) ? (
-                            allowedSectors.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                            ))
-                        ) : (
-                            company?.sectors.map(s => (
-                                <option key={s.name} value={s.name}>{s.name}</option>
-                            ))
-                        )}
+            {!user?.activeCompanyId && <p className="card text-sm">Selecione uma empresa para consultar a curva de processos.</p>}
+            <div className="card grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">Setor
+                    <select className="input" value={effectiveSector} onChange={e => setSelectedSector(e.target.value)}>
+                        <option value="">Todos os setores autorizados</option>
+                        {sectors.map(sector => <option key={sector.name}>{sector.name}</option>)}
                     </select>
-                )}
-
-                {!isOperator && (
-                    <select
-                        value={selectedUserId}
-                        onChange={(e) => setSelectedUserId(e.target.value)}
-                        className="input py-1.5 w-auto"
-                    >
-                        <option value="">Todos os Operadores</option>
-                        {users?.map(u => (
-                            <option key={u._id?.toString()} value={u._id?.toString()}>{u.name}</option>
-                        ))}
+                </label>
+                {!isOperator && <label className="text-sm">Responsável
+                    <select className="input" value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}>
+                        <option value="">Todos os responsáveis</option>
+                        {users?.map(u => <option key={u._id || u.id} value={u._id || u.id}>{u.name}</option>)}
                     </select>
-                )}
+                </label>}
             </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {kpis.map((stat) => (
-                    <div key={stat.name} className="card">
-                        <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-xl ${stat.bgColor} dark:bg-opacity-20`}>
-                                <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{stat.name}</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                                {stat.name === 'Pontuação Média' && <PerformanceDetails indicators={curveData?.kpis} />}
-                            </div>
+            {isLoading && <p role="status" className="text-sm">Carregando a curva de processos…</p>}
+            {curveData && !kpis?.totalPlanned && <p className="card text-sm">Nenhum processo planejado para este recorte.</p>}
+            {!!kpis?.totalPlanned && curveData && <>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {stats.map(stat => <div key={stat.label} className="card">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <stat.icon className="h-4 w-4 shrink-0 text-primary-600" />{stat.label}
                         </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Delivery outcome by status (not cumulative) */}
-                <div className="card">
-                    <div className="flex items-center justify-between gap-2 mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Entregas por Status</h2>
-                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
-                            {(['bar', 'pie'] as const).map(type => (
-                                <button key={type} type="button" onClick={() => setBreakdownChart(type)}
-                                    className={`px-3 py-1 ${breakdownChart === type ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                                    {type === 'bar' ? 'Barras' : 'Pizza'}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            {breakdownChart === 'bar' ? (
-                                <BarChart data={curveData?.deliveryBreakdown} layout="vertical" margin={{ left: 40, right: 30 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                    <XAxis type="number" allowDecimals={false} />
-                                    <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 12 }} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                                    <Bar dataKey="count" name="Processos" radius={[0, 4, 4, 0]}>
-                                        {curveData?.deliveryBreakdown?.map(item => <Cell key={item.key} fill={DELIVERY_COLORS[item.key]} />)}
-                                        <LabelList dataKey="count" position="right" />
-                                    </Bar>
-                                </BarChart>
-                            ) : (
-                                <PieChart>
-                                    <Pie data={curveData?.deliveryBreakdown?.filter(item => item.count > 0)} dataKey="count" nameKey="label" outerRadius={120} label>
-                                        {curveData?.deliveryBreakdown?.filter(item => item.count > 0).map(item => <Cell key={item.key} fill={DELIVERY_COLORS[item.key]} />)}
-                                    </Pie>
-                                    <Tooltip />
-                                    <Legend />
-                                </PieChart>
-                            )}
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">Cada processo do mês aparece uma vez, pela data da entrega em relação à data planejada e ao limite.</p>
+                        <p className="mt-1 text-2xl font-semibold tabular-nums">{stat.value}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stat.detail}</p>
+                    </div>)}
                 </div>
-
-                {/* Delay and Critical Chart */}
-                <div className="card">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Status de Atraso e Crítico</h2>
-                    <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={curveData?.series}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="day" />
-                                <YAxis />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                    labelFormatter={(label) => `Dia ${label}`}
-                                />
-                                <Legend />
-                                <Line type="monotone" dataKey="delayed" name="Atrasado" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                                <Line type="monotone" dataKey="critical" name="Crítico" stroke="#ef4444" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                    <ProcessCurveChart title="Planejado × realizado"
+                        description="Volume acumulado no mês. As entregas vão até o dia de referência."
+                        data={series} metrics={[
+                            { key: 'planned', label: 'Planejados', color: '#64748b', dashed: true },
+                            { key: 'realized', label: 'Entregues', color: '#0d9488' },
+                        ]}
+                        snapshot={lastObserved && {
+                            date: lastObserved.date,
+                            description: 'Composição do plano mensal, incluindo processos com data planejada futura.',
+                            slices: [
+                                { name: 'Entregues até a data', count: lastObserved.realized ?? 0, color: '#0d9488' },
+                                { name: 'Sem entrega até a data', count: kpis.totalPlanned - (lastObserved.realized ?? 0), color: '#64748b' },
+                            ],
+                        }} />
+                    <ProcessCurveChart title="Pendências por dia"
+                        description="Processos sem entrega ao fim de cada dia. Cada pendência aparece em uma faixa."
+                        data={observed} metrics={[
+                            { key: 'delayedOpen', label: 'Após o planejado', color: '#d97706' },
+                            { key: 'overdueOpen', label: 'Limite vencido', color: '#dc2626' },
+                        ]}
+                        snapshot={lastObserved && {
+                            date: lastObserved.date,
+                            description: 'Distribuição das pendências em atraso na data.',
+                            slices: [
+                                { name: 'Após o planejado', count: lastObserved.delayedOpen, color: '#d97706' },
+                                { name: 'Limite vencido', count: lastObserved.overdueOpen, color: '#dc2626' },
+                            ],
+                        }} />
+                    <section className="card min-w-0">
+                        <h2 className="text-lg font-semibold">Situação dos processos planejados</h2>
+                        <p className="text-xs text-gray-500">Percentual sobre os {kpis.totalPlanned} processos do recorte.</p>
+                        <ul className="mt-4 space-y-3">
+                            {breakdown.map(item => <li key={item.key} className="text-sm">
+                                <div className="flex flex-wrap justify-between gap-x-3">
+                                    <span>{item.label}</span><strong>{item.count} · {percent(item.count, kpis.totalPlanned)}</strong>
+                                </div>
+                                <div aria-hidden="true" className="mt-1 h-2 rounded-full bg-gray-100 dark:bg-gray-700">
+                                    <div className="h-full rounded-full" style={{ width: `${item.count * 100 / kpis.totalPlanned}%`, background: DELIVERY_COLORS[item.key] }} />
+                                </div>
+                            </li>)}
+                        </ul>
+                    </section>
+                    <section className="card min-w-0">
+                        <h2 className="text-lg font-semibold">Pendências por setor</h2>
+                        <p className="text-xs text-gray-500">Em {formatBusinessDate(curveData.asOf)}. Setores com mais limites vencidos aparecem primeiro.</p>
+                        {risk.length ? <div className="mt-3 max-h-64 overflow-auto">
+                            <table className="table text-sm">
+                                <thead><tr><th>Setor</th><th>Após o planejado</th><th>Limite vencido</th></tr></thead>
+                                <tbody>{risk.map(row => <tr key={row.sector}>
+                                    <td>{row.sector}</td><td>{row.delayedOpen}</td><td className="font-semibold text-danger-600">{row.overdueOpen}</td>
+                                </tr>)}</tbody>
+                            </table>
+                        </div> : <p className="mt-4 text-sm text-gray-500">Nenhuma pendência em atraso neste recorte.</p>}
+                    </section>
                 </div>
-            </div>
+            </>}
 
             {/* Critical Items Table */}
-            <div className="card overflow-hidden">
+            {curveData && <div className="card overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-red-500" />
-                        Itens Críticos no Período
+                        Processos com limite ultrapassado
                     </h3>
                     <span className="text-sm text-gray-500">
                         {curveData?.criticalItems.length || 0} itens identificados
@@ -321,8 +239,8 @@ export default function ProcessCurveReport() {
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {curveData?.criticalItems.map((item: any) => (
-                                <tr key={item.code} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            {curveData.criticalItems.map((item) => (
+                                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="font-medium text-gray-900 dark:text-white">{item.code}</div>
                                         <div className="text-sm text-gray-500">{item.title}</div>
@@ -331,8 +249,9 @@ export default function ProcessCurveReport() {
                                         {item.sector}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div>Planejado: {new Date(item.plannedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</div>
-                                        <div className="text-red-500 font-medium">Limite: {new Date(item.limitDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</div>
+                                        <div>Planejado: {formatBusinessDate(item.plannedDate)}</div>
+                                        <div className="text-red-500 font-medium">Limite: {formatBusinessDate(item.limitDate)}</div>
+                                        <div>{item.deliveryDate ? `Entregue em ${formatBusinessDate(item.deliveryDate)}` : 'Sem entrega registrada'}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {item.responsible}
@@ -342,14 +261,14 @@ export default function ProcessCurveReport() {
                             {curveData?.criticalItems.length === 0 && (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                                        Nenhum item crítico identificado neste período.
+                                        Nenhum processo ultrapassou o limite neste recorte.
                                     </td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div>}
         </div>
     );
 }
