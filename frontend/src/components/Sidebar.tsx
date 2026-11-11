@@ -72,7 +72,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const filterItems = (items: any[]) => {
         return items.filter((item) => {
             if (item.alwaysVisible) return true;
-            if (['system-logs', 'email-logs', 'date-changes'].includes(item.id) && !isMaster) return false;
+            if ([
+                'system-logs', 'email-logs', 'date-changes', 'users', 'sectors',
+                'companies', 'evaluation-parameters', 'email-settings',
+            ].includes(item.id) && !isMaster) return false;
             if (isMaster) return true;
             return hasMenuAccess(user?.allowedMenus, item.id);
         });

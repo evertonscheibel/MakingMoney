@@ -5,6 +5,7 @@ import { Company, Cycle, Process, User, AuditLog } from '../models';
 import { OperationalMilestone } from '../models/OperationalMilestone';
 import { UserRole, ProcessStatus } from '../types';
 import { assessmentState, assessmentIndicators } from '../utils/assessment';
+import { getPendingStatus } from '../utils/scoring';
 import { getPerformanceEvolution, createMilestone } from '../controllers/evolution.controller';
 import { setProcessAssessment, linkProcessLineage } from '../controllers/processAssessment.controller';
 import { listProcesses, updateProcess, confirmDelivery } from '../controllers/process.controller';
@@ -47,6 +48,16 @@ async function process(c: any, code: string, score: number | null, extra: any = 
 const range = { from: '2026-01', to: '2026-03' };
 
 describe('Estados e cobertura de avaliação', () => {
+    it('mantém o prazo operacional até o fim do dia de Cuiabá ao calcular pendências', () => {
+        const planned = new Date('2026-11-11T00:00:00Z');
+        const limit = new Date('2026-11-15T00:00:00Z');
+        expect(getPendingStatus(planned, limit, new Date('2026-11-11T02:00:00Z'))).toBe(ProcessStatus.PENDING);
+        expect(getPendingStatus(planned, limit, new Date('2026-11-12T03:59:59Z'))).toBe(ProcessStatus.PENDING);
+        expect(getPendingStatus(planned, limit, new Date('2026-11-12T04:00:00Z'))).toBe(ProcessStatus.LATE);
+        expect(getPendingStatus(planned, limit, new Date('2026-11-16T03:59:59Z'))).toBe(ProcessStatus.LATE);
+        expect(getPendingStatus(planned, limit, new Date('2026-11-16T04:00:00Z'))).toBe(ProcessStatus.CRITICAL);
+    });
+
     it('prazo é o fim do dia operacional de Cuiabá, sem alterar pontuação/tolerância', () => {
         const p = { score: null, limitDate: '2026-01-20T00:00:00Z' };
         expect(assessmentState(p, new Date('2026-01-21T03:59:59Z'))).toBe('PENDENTE');
