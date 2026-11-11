@@ -24,6 +24,7 @@ import {
 } from '../controllers/process.controller';
 
 const router = Router();
+import { setProcessAssessment, linkProcessLineage } from '../controllers/processAssessment.controller';
 
 router.use(authenticate, requireCompany);
 
@@ -41,6 +42,8 @@ router.put('/:id', validate(updateProcessValidation), updateProcess);
 
 // Activate/deactivate (dedicated, reason-required — never bundled into a generic edit)
 router.patch('/:id/active', validate(setProcessActiveValidation), setProcessActive);
+router.patch('/:id/assessment', setProcessAssessment);
+router.post('/:id/lineage', linkProcessLineage);
 
 // Mark as delivered (legacy - still works)
 router.put('/:id/deliver', validate(deliverProcessValidation), deliverProcess);

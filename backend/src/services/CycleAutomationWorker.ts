@@ -2,6 +2,10 @@ import { Company, Cycle, Process, User } from '../models';
 import { CycleStatus, ProcessStatus } from '../types';
 import { EmailService } from './email.service';
 import { logger } from '../config';
+import { calculatePerformance } from '../utils/performance';
+import { assessmentIndicators } from '../utils/assessment';
+import { cloneProcessMetadata } from '../utils/cloneProcess';
+import { calculateAverage, calculatePercentage } from '../utils/helpers';
 
 type SundayRule = 'KEEP' | 'PREVIOUS_DAY' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_DAY' | 'NEXT_BUSINESS_DAY';
 
@@ -54,12 +58,18 @@ export class CycleAutomationWorker {
         const processes = await Process.find({ cycleId: cycle._id });
         cycle.status = CycleStatus.CLOSED; cycle.closedAt = new Date();
         const active = processes.filter(p => p.isActive !== false);
-        cycle.kpis = { avgScore: active.length ? active.reduce((n,p)=>n+(p.score || 0),0)/active.length : 0, onTimePct: active.length ? active.filter(p=>p.status===ProcessStatus.ON_TIME).length*100/active.length : 0, criticalCount: active.filter(p=>p.status===ProcessStatus.CRITICAL).length, totalProcesses: active.length, avgDeviationDays: 0 };
+        const performance = calculatePerformance(active);
+        const deviations = active.filter(p => p.deliveryDate != null).map(p =>
+            Math.round((p.deliveryDate!.getTime() - p.plannedDate.getTime()) / 86_400_000));
+        cycle.kpis = { ...performance, ...assessmentIndicators(active), avgScore: performance.performanceAverage ?? 0,
+            onTimePct: calculatePercentage(active.filter(p => p.status === ProcessStatus.ON_TIME).length, active.length),
+            criticalCount: active.filter(p => p.status === ProcessStatus.CRITICAL).length,
+            totalProcesses: active.length, avgDeviationDays: calculateAverage(deviations) };
         await cycle.save();
         const month = nextMonth(cycle.month);
         const target = await Cycle.findOneAndUpdate({ companyId: company._id, sector: sector.name, month }, { $set: { status: CycleStatus.OPEN, openedAt: new Date(), closedAt: null } }, { upsert: true, new: true });
         const existing = new Set(await Process.find({ cycleId: target._id }).distinct('code'));
-        const clones = processes.filter(p=>!existing.has(p.code)).map(p => { const value:any=p.toObject(); delete value._id; delete value.createdAt; delete value.updatedAt; return {...value,cycleId:target._id,plannedDate:applySunday(moveMonth(p.plannedDate),sector.cycleAutomation.sundayPlannedRule),limitDate:applySunday(moveMonth(p.limitDate),sector.cycleAutomation.sundayLimitRule),deliveryDate:null,deliverySource:null,deliveryEvidence:null,deliveryStatus:'NOT_DELIVERED',score:null,status:ProcessStatus.PENDING,emailSentAt:null}; });
+        const clones = processes.filter(p=>!existing.has(p.code)).map(p => { const value:any=p.toObject(); delete value._id; delete value.createdAt; delete value.updatedAt; return {...value,...cloneProcessMetadata(p),cycleId:target._id,plannedDate:applySunday(moveMonth(p.plannedDate),sector.cycleAutomation.sundayPlannedRule),limitDate:applySunday(moveMonth(p.limitDate),sector.cycleAutomation.sundayLimitRule),deliveryDate:null,deliverySource:null,deliveryEvidence:null,deliveryStatus:'NOT_DELIVERED',score:null,status:ProcessStatus.PENDING,emailSentAt:null}; });
         if (clones.length) await Process.insertMany(clones);
         const ids=[...new Set([...(sector.managerIds||[]),...(sector.managerId?[sector.managerId]:[])].map(String))];
         const managers=await User.find({_id:{$in:ids}}).select('name email');

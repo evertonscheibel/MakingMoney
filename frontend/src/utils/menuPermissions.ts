@@ -1,5 +1,7 @@
 const MENU_ALIASES: Record<string, string[]> = {
     'bonus-report': ['bonuses'],
+    // Quem já acessa Relatórios recebe a nova tela sem precisar reconfigurar usuários.
+    'process-performance': ['reports'],
 };
 
 export function normalizeMenuId(menuId: string) {

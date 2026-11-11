@@ -1,12 +1,17 @@
+import { businessToday } from '../utils/assessment';
 import { Request, Response } from 'express';
 import { query } from 'express-validator';
 // Dynamic imports used inside functions to avoid circular dependencies
 // import { Cycle, Process, Company } from '../models';
-import { asyncHandler, NotFoundError, UnauthorizedError, ForbiddenError } from '../middleware/errors';
-import { CycleStatus, ProcessStatus, UserRole } from '../types';
-import { calculatePercentage, calculateAverage, getEffectiveSectors, isSectorManager } from '../utils';
+import { asyncHandler, AppError, NotFoundError, UnauthorizedError, ForbiddenError } from '../middleware/errors';
+import { getCompanySectorScope } from '../utils/processAccess';
+import { calculatePerformance, performanceAccumulators, performanceFromTotals } from '../utils/performance';
+import { assessmentIndicators, assessmentAccumulators, coverageFromTotals, serializeAssessment, assessmentStates, assessmentExpression } from '../utils/assessment';
+import { CycleStatus, DeliverySource, ProcessStatus, UserRole } from '../types';
+import { calculatePercentage, getEffectiveSectors, isSectorManager } from '../utils';
 
 export const reportValidation = [
+    query('assessmentState').optional().isIn(assessmentStates),
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
     query('period').optional().matches(/^\d{4}-\d{2}$/).withMessage('Period must be in YYYY-MM format'),
     query('status').optional().isIn(Object.values(ProcessStatus)).withMessage('Invalid status'),
@@ -141,7 +146,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
     // Enforce sector restriction for non-masters
     if (!isAdminOrMaster) {
         if (combinedSectors.length === 0) {
-            res.json({ success: true, data: { cycle: { id: 'none', month: 'Nenhum Ciclo', sector: 'N/A', status: CycleStatus.CLOSED }, kpis: { totalProcesses: 0, deliveredCount: 0, pendingCount: 0, onTimeCount: 0, lateCount: 0, criticalCount: 0, avgScore: 0, onTimePct: 0, deliveryPct: 0 } } });
+            res.json({ success: true, data: { cycle: { id: 'none', month: 'Nenhum Ciclo', sector: 'N/A', status: CycleStatus.CLOSED }, kpis: { totalProcesses: 0, pendingCount: 0, onTimeCount: 0, lateCount: 0, criticalCount: 0, avgScore: 0, onTimePct: 0, deliveryPct: 0, ...calculatePerformance([]), ...assessmentIndicators([]) } } });
             return;
         }
 
@@ -166,7 +171,6 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
                 },
                 kpis: {
                     totalProcesses: 0,
-                    deliveredCount: 0,
                     pendingCount: 0,
                     onTimeCount: 0,
                     lateCount: 0,
@@ -174,6 +178,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
                     avgScore: 0,
                     onTimePct: 0,
                     deliveryPct: 0,
+                    ...calculatePerformance([]), ...assessmentIndicators([]),
                 },
             },
         });
@@ -192,20 +197,21 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
     // to avoid "zeroed" indicators if they have no specific processes assigned.
     // In getExtract we will still keep the restriction if needed.
 
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.assessmentState) filter.$expr = { $eq: [assessmentExpression(), req.query.assessmentState] };
     const processes = await Process.find(filter);
 
     // Calculate KPIs
     const totalProcesses = processes.length;
-    const deliveredCount = processes.filter((p) => p.deliveryDate !== null).length;
     const onTimeCount = processes.filter((p) => p.status === ProcessStatus.ON_TIME).length;
     const lateCount = processes.filter((p) => p.status === ProcessStatus.LATE).length;
     const criticalCount = processes.filter((p) => p.status === ProcessStatus.CRITICAL).length;
     const pendingCount = processes.filter((p) => p.status === ProcessStatus.PENDING).length;
 
-    const scores = processes.filter((p) => p.score !== null).map((p) => p.score!);
-    const avgScore = calculateAverage(scores);
+    const performance = { ...calculatePerformance(processes), ...assessmentIndicators(processes) };
+    const avgScore = performance.performanceAverage ?? 0; // Numeric legacy field.
     const onTimePct = calculatePercentage(onTimeCount, totalProcesses);
-    const deliveryPct = calculatePercentage(deliveredCount, totalProcesses);
+    const deliveryPct = performance.deliveryRatePct ?? 0;
 
     res.json({
         success: true,
@@ -223,7 +229,6 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
             },
             kpis: {
                 totalProcesses,
-                deliveredCount,
                 pendingCount,
                 onTimeCount,
                 lateCount,
@@ -231,6 +236,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response): Prom
                 avgScore,
                 onTimePct,
                 deliveryPct,
+                ...performance,
             },
         },
     });
@@ -285,30 +291,29 @@ export const getSectorRanking = asyncHandler(async (req: Request, res: Response)
     const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
 
     // Ranking always shows sector data
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.assessmentState) filter.$expr = { $eq: [assessmentExpression(), req.query.assessmentState] };
 
-    const ranking = await Process.aggregate([
+    const rows = await Process.aggregate([
         { $match: filter },
         {
             $group: {
                 _id: '$sector',
-                totalProcesses: { $sum: 1 },
-                avgScore: { $avg: { $ifNull: ['$score', 0] } },
+                ...performanceAccumulators(),
+                ...assessmentAccumulators(),
                 onTimeCount: { $sum: { $cond: [{ $eq: ['$status', ProcessStatus.ON_TIME] }, 1, 0] } },
                 criticalCount: { $sum: { $cond: [{ $eq: ['$status', ProcessStatus.CRITICAL] }, 1, 0] } },
             },
         },
-        {
-            $project: {
-                sector: '$_id',
-                totalProcesses: 1,
-                avgScore: { $round: ['$avgScore', 2] },
-                onTimeCount: 1,
-                criticalCount: 1,
-                onTimePct: { $round: [{ $multiply: [{ $divide: ['$onTimeCount', '$totalProcesses'] }, 100] }, 2] },
-            },
-        },
-        { $sort: { avgScore: -1 } },
     ]);
+    const ranking = rows.map(row => {
+        const performance = performanceFromTotals({ scoreSum: row.scoreSum, validScoreCount: row.validScoreCount,
+            activeProcessCount: row.activeProcessCount, deliveredCount: row.deliveredCount });
+        return { _id: row._id, sector: row._id, totalProcesses: row.activeProcessCount,
+            avgScore: performance.performanceAverage ?? 0, onTimeCount: row.onTimeCount,
+            criticalCount: row.criticalCount, onTimePct: calculatePercentage(row.onTimeCount, row.activeProcessCount),
+            ...performance, ...coverageFromTotals(row) };
+    }).sort((a, b) => (b.performanceAverage ?? -1) - (a.performanceAverage ?? -1));
 
     res.json({
         success: true,
@@ -452,6 +457,7 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
     const filter: Record<string, any> = { cycleId: { $in: cycles.map(c => c._id) }, isActive: { $ne: false } };
     if (sector) { filter.sector = sector; }
     if (req.query.status) { filter.status = req.query.status; }
+    if (req.query.assessmentState) filter.$expr = { $eq: [assessmentExpression(), req.query.assessmentState] };
 
     if (globalRoles.includes(UserRole.OPERATOR) && !globalRoles.includes(UserRole.MASTER) && !globalRoles.includes(UserRole.MANAGER)) {
         if (legacySector) { filter.sector = legacySector; } else { filter.responsibleUserId = userId; }
@@ -464,7 +470,7 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
     const bySector: Record<string, typeof processes> = {};
     processes.forEach((p) => {
         if (!bySector[p.sector]) { bySector[p.sector] = []; }
-        bySector[p.sector].push(p);
+        bySector[p.sector].push(serializeAssessment(p) as any);
     });
 
     res.json({
@@ -485,12 +491,26 @@ export const getExtract = asyncHandler(async (req: Request, res: Response): Prom
 export const getHistory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const activeCompanyId = req.companyId!;
     const { Cycle } = await import('../models');
+    const { sector } = req.query;
+    if (sector !== undefined && (typeof sector !== 'string' || !sector.trim())) {
+        throw new AppError('Sector must be a non-empty string', 400);
+    }
 
-    const cycles = await Cycle.find({
+    const scope = await getCompanySectorScope(req);
+    if (sector !== undefined && scope !== null && !scope.includes(sector as string)) {
+        throw new ForbiddenError('Access to requested sector is denied');
+    }
+    const filter: Record<string, any> = {
         companyId: activeCompanyId,
         status: CycleStatus.CLOSED,
-    })
-        .sort({ month: -1 })
+    };
+    if (scope !== null) filter.sector = { $in: scope };
+    if (sector !== undefined) filter.sector = sector;
+
+    // Scope before applying the limit: hidden sectors must not consume visible slots.
+    // Keep the existing five-cycle/snapshot contract; monthly consolidation is separate.
+    const cycles = await Cycle.find(filter)
+        .sort({ month: -1, sector: 1, _id: 1 })
         .limit(5);
 
     const history = cycles.map((c) => ({
@@ -499,6 +519,13 @@ export const getHistory = asyncHandler(async (req: Request, res: Response): Prom
         onTimePct: c.kpis.onTimePct,
         totalProcesses: c.kpis.totalProcesses,
         criticalCount: c.kpis.criticalCount,
+        // Old snapshots remain old snapshots: never infer their sample from totalProcesses.
+        ...(c.kpis.aggregationVersion === 1 ? {
+            aggregationVersion: c.kpis.aggregationVersion, scoreSum: c.kpis.scoreSum,
+            validScoreCount: c.kpis.validScoreCount, performanceAverage: c.kpis.performanceAverage,
+            activeProcessCount: c.kpis.activeProcessCount, deliveredCount: c.kpis.deliveredCount,
+            deliveryRatePct: c.kpis.deliveryRatePct,
+        } : {}),
     }));
 
     history.reverse();
@@ -553,40 +580,72 @@ export const getProcessCurve = asyncHandler(async (req: Request, res: Response):
         filter.sector = sector;
     }
 
-    if (globalRoles.includes(UserRole.OPERATOR) && !isAdminOrMaster && !globalRoles.includes(UserRole.MANAGER)) {
-        if (filterUserId) { filter.responsibleUserId = filterUserId; } else { filter.responsibleUserId = userId; }
+    if (!isAdminOrMaster && companyRole !== UserRole.MANAGER) {
+        filter.responsibleUserId = userId;
     } else if (filterUserId) {
         filter.responsibleUserId = filterUserId;
     }
 
     const processes = await Process.find(filter).populate('responsibleUserId', 'name');
-
+    const asOf = businessToday();
+    // Planned and manual delivery dates are calendar days. Email deliveries are timestamps.
+    const rows = processes.map(process => ({
+        process,
+        planned: process.plannedDate.toISOString().slice(0, 10),
+        limit: process.limitDate.toISOString().slice(0, 10),
+        delivered: process.deliveryDate && process.deliverySource === DeliverySource.EMAIL
+            ? businessToday(process.deliveryDate) : process.deliveryDate?.toISOString().slice(0, 10),
+    }));
     const series = [];
-    for (let d = 1; d <= lastDay; d++) {
-        const currentDate = new Date(Date.UTC(year, month - 1, d, 23, 59, 59, 999));
-        const planned = processes.filter(p => p.plannedDate <= currentDate).length;
-        const realized = processes.filter(p => p.deliveryDate && p.deliveryDate <= currentDate).length;
-        const delayed = Math.max(0, planned - realized);
-        const critical = processes.filter(p => {
-            const isPastLimit = currentDate > p.limitDate;
-            const notDeliveredByD = !p.deliveryDate || p.deliveryDate > currentDate;
-            const deliveredLateBeforeD = p.deliveryDate && p.deliveryDate > p.limitDate && p.deliveryDate <= currentDate;
-            return (isPastLimit && notDeliveredByD) || deliveredLateBeforeD;
-        }).length;
-
-        series.push({ day: d, date: currentDate.toISOString().split('T')[0], planned, realized, delayed, critical });
+    for (let day = 1; day <= lastDay; day++) {
+        const date = `${period}-${String(day).padStart(2, '0')}`;
+        const planned = rows.filter(row => row.planned <= date).length;
+        const realized = rows.filter(row => row.delivered && row.delivered <= date).length;
+        const open = rows.filter(row => !row.delivered || row.delivered > date);
+        const delayedOpen = open.filter(row => row.planned < date && row.limit >= date).length;
+        const overdueOpen = open.filter(row => row.limit < date).length;
+        const critical = overdueOpen + rows.filter(row => row.delivered && row.delivered > row.limit && row.delivered <= date).length;
+        series.push({ day, date, planned, realized, delayed: Math.max(0, planned - realized), critical, delayedOpen, overdueOpen });
     }
 
     const totalPlanned = processes.length;
-    const deliveredCount = processes.filter(p => p.deliveryDate !== null).length;
     const onTimeCount = processes.filter(p => p.status === ProcessStatus.ON_TIME).length;
-    const scores = processes.filter(p => p.score !== null).map(p => p.score!);
-    const avgScore = calculateAverage(scores);
+    const performance = { ...calculatePerformance(processes), ...assessmentIndicators(processes) };
+    const avgScore = performance.performanceAverage ?? 0;
     const onTimePct = calculatePercentage(onTimeCount, totalPlanned);
-
-    const criticalItems = processes.filter(p => p.status === ProcessStatus.CRITICAL).map(p => ({
-        code: p.code, title: p.title, sector: p.sector, plannedDate: p.plannedDate, limitDate: p.limitDate, deliveryDate: p.deliveryDate, responsible: (p.responsibleUserId as any)?.name || 'N/A',
-    }));
-
-    res.json({ success: true, data: { series, kpis: { totalPlanned, deliveredCount, onTimePct, avgScore }, criticalItems } });
+    const bands = [
+        { key: 'EARLY', label: 'Antes do planejado', count: 0 },
+        { key: 'ON_PLANNED', label: 'Na data planejada', count: 0 },
+        { key: 'LATE', label: 'Após o planejado, até o limite', count: 0 },
+        { key: 'CRITICAL', label: 'Entregue após o limite', count: 0 },
+        { key: 'OVERDUE', label: 'Sem entrega, limite vencido', count: 0 },
+        { key: 'PENDING', label: 'Sem entrega, dentro do limite', count: 0 },
+    ];
+    const criticalItems = [];
+    const sectorRisk = new Map<string, { sector: string; delayedOpen: number; overdueOpen: number }>();
+    for (const { process, planned, limit, delivered } of rows) {
+        const index = delivered == null ? (asOf > limit ? 4 : 5)
+            : delivered < planned ? 0 : delivered === planned ? 1 : delivered <= limit ? 2 : 3;
+        bands[index].count++;
+        if (!delivered && asOf > planned) {
+            const risk = sectorRisk.get(process.sector) ?? { sector: process.sector, delayedOpen: 0, overdueOpen: 0 };
+            if (asOf > limit) risk.overdueOpen++;
+            else risk.delayedOpen++;
+            sectorRisk.set(process.sector, risk);
+        }
+        if (index === 3 || index === 4) {
+            criticalItems.push({
+                id: String(process._id), code: process.code, title: process.title, sector: process.sector,
+                plannedDate: planned, limitDate: limit, deliveryDate: delivered ?? null,
+                responsible: (process.responsibleUserId as any)?.name || 'Não informado',
+            });
+        }
+    }
+    criticalItems.sort((a, b) => Number(!!a.deliveryDate) - Number(!!b.deliveryDate) || a.limitDate.localeCompare(b.limitDate));
+    const riskBySector = [...sectorRisk.values()].sort((a, b) =>
+        b.overdueOpen - a.overdueOpen || b.delayedOpen - a.delayedOpen || a.sector.localeCompare(b.sector));
+    res.json({ success: true, data: {
+        asOf, series, deliveryBreakdown: bands, riskBySector,
+        kpis: { totalPlanned, onTimePct, avgScore, ...performance }, criticalItems,
+    } });
 });

@@ -25,7 +25,7 @@ app.post('/process/:id/confirm', handlers.confirmDelivery);
 app.post('/process/:id/legacy-deliver', handlers.deliverProcess);
 app.post('/process/:id/email', handlers.sendDeliveryEmail);
 app.post('/process/:id/revert', handlers.revertDelivery);
-app.post('/import', (req, _res, next) => { req.file = {buffer: workbook()} as any; next(); }, importProcesses);
+app.post('/import', (req, _res, next) => { req.file = {buffer: workbook(req.query.format === 'xls' ? 'biff8' : 'xlsx')} as any; next(); }, importProcesses);
 app.get('/bonus', getBonusReport);
 app.get('/metrics/me', getMyMetrics);
 app.get('/metrics/team', getTeamMetrics);
@@ -35,10 +35,10 @@ app.post('/cycle/:id/reopen', reopenCycle);
 app.get('/preview', previewCloseCycle);
 app.use((error: any, _req: any, res: any, _next: any) => res.status(error.statusCode || 500).json({error: error.message}));
 
-function workbook() {
+function workbook(bookType: 'xlsx' | 'biff8' = 'xlsx') {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ 'numero do ID': '101', 'nome do Processo': 'Importado' }]), 'Processos');
-    return XLSX.write(wb, {type: 'buffer', bookType: 'xlsx'});
+    return XLSX.write(wb, {type: 'buffer', bookType});
 }
 function asUser(user: any, role = user.roles[0]) {
     auth = {userId: String(user._id), email: user.email, roles: user.roles, activeCompanyId: String(company._id),
@@ -76,10 +76,10 @@ describe('Company and sector authorization regressions', () => {
         asUser(manager, UserRole.OPERATOR);
         expect((await request(app).post('/process').send({title:'Blocked',sector:'Financeiro',plannedDate:'2026-11-02',limitDate:'2026-11-05'})).status).toBe(403);
     });
-    it('permits authorized import and blocks reversed dates', async () => {
+    it.each(['xlsx', 'xls'])('permits authorized %s import and blocks reversed dates', async format => {
         const body={sector:'Financeiro',plannedDate:'2026-11-02',limitDate:'2026-11-05',responsibleUserId:String(operator._id)};
-        expect((await request(app).post('/import').send({...body,limitDate:'2026-11-01'})).status).toBe(400);
-        expect((await request(app).post('/import').send(body)).status).toBe(201);
+        expect((await request(app).post('/import').query({format}).send({...body,limitDate:'2026-11-01'})).status).toBe(400);
+        expect((await request(app).post('/import').query({format}).send(body)).status).toBe(201);
         expect(await Process.countDocuments({code:'101',sector:'Financeiro'})).toBe(1);
     });
     it('forbids assigning a responsible user from another company', async () => {

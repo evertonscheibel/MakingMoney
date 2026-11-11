@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { assessmentExpression, assessmentStates, serializeAssessment } from '../utils/assessment';
 import { getCompanyRole } from '../utils/permissions';
 import { assertSectorAccess, assertOpenProcess, assertResponsibleAccess } from '../utils/processAccess';
 import { Request, Response } from 'express';
@@ -14,6 +15,7 @@ import { getProcessDeliveryEmailTemplate } from '../services/email/templates/pro
 
 // Validation rules
 export const createProcessValidation = [
+    body('category').optional().isString().trim().isLength({ max: 100 }),
     body('code').optional().matches(/^\d{1,5}$/).withMessage('Code must be numeric (e.g., 001)'),
     body('title').trim().isLength({ min: 3, max: 200 }).withMessage('Title must be 3-200 characters'),
     body('sector').trim().notEmpty().withMessage('Sector is required'),
@@ -24,6 +26,7 @@ export const createProcessValidation = [
 ];
 
 export const updateProcessValidation = [
+    body('category').optional().isString().trim().isLength({ max: 100 }),
     param('id').isMongoId().withMessage('Invalid process ID'),
     body('code').optional().matches(/^\d{1,5}$/).withMessage('Invalid code format'),
     body('title').optional().trim().isLength({ min: 3, max: 200 }),
@@ -57,6 +60,7 @@ export const setProcessActiveValidation = [
 ];
 
 export const listProcessesValidation = [
+    query('assessmentState').optional().isIn(assessmentStates),
     query('cycleId').optional().isMongoId().withMessage('Invalid cycle ID'),
     query('sector').optional().trim(),
     query('month').optional().matches(/^\d{4}-(0[1-9]|1[0-2])$/),
@@ -156,6 +160,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
     }
 
     if (status) { filter.status = status; }
+    if (req.query.assessmentState) filter.$expr = { $eq: [assessmentExpression(), req.query.assessmentState] };
 
     if (deliveryMode === 'DELIVERED_ONLY') {
         filter.deliveryDate = { $ne: null };
@@ -190,7 +195,7 @@ export const listProcesses = asyncHandler(async (req: Request, res: Response): P
         Process.countDocuments(filter),
     ]);
 
-    res.json({ success: true, data: processes, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
+    res.json({ success: true, data: processes.map(p => serializeAssessment(p)), pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
 });
 
 /**
@@ -221,7 +226,7 @@ export const getProcess = asyncHandler(async (req: Request, res: Response): Prom
         if (!allowedSectors.includes(process.sector)) { throw new AppError('Access to this process is denied', 403); }
     }
 
-    res.json({ success: true, data: process });
+    res.json({ success: true, data: serializeAssessment(process) });
 });
 
 /**
@@ -275,7 +280,7 @@ export const createProcess = asyncHandler(async (req: Request, res: Response): P
 
     const process = await Process.create({
         companyId, cycleId: cycle._id, code: finalCode, title, sector, owner: owner || null, plannedDate: planned, limitDate: limit, status: getPendingStatus(planned, limit), responsibleUserId: responsibleUserId || null,
-        isActive: true,
+        isActive: true, category: typeof req.body.category === 'string' ? req.body.category.trim() : undefined,
     });
 
     await auditAction(req, AuditAction.CREATE, EntityType.PROCESS, process._id.toString(), null, process.toObject() as any);
@@ -336,11 +341,15 @@ export const updateProcess = asyncHandler(async (req: Request, res: Response): P
     const before = process.toObject();
     if (updates.code) process.code = updates.code.toUpperCase();
     if (updates.title) process.title = updates.title;
+    if (typeof updates.category === 'string') process.category = updates.category.trim();
     if (updates.sector) process.sector = updates.sector;
     if (updates.owner !== undefined) process.owner = updates.owner || null;
     if (updates.plannedDate) process.plannedDate = new Date(updates.plannedDate);
     if (updates.limitDate) process.limitDate = new Date(updates.limitDate);
-    if (updates.responsibleUserId !== undefined) process.responsibleUserId = updates.responsibleUserId as any;
+    if (updates.responsibleUserId !== undefined && String(process.responsibleUserId || '') !== String(updates.responsibleUserId || '')) {
+        process.responsibilityChangedAt = new Date();
+        process.responsibleUserId = updates.responsibleUserId as any;
+    }
 
     if (process.limitDate < process.plannedDate) { throw new AppError('A data limite não pode ser anterior à data planejada.', 400); }
     if (!process.deliveryDate) { process.status = getPendingStatus(process.plannedDate, process.limitDate); }
@@ -448,6 +457,8 @@ export const deliverProcess = asyncHandler(async (req: Request, res: Response): 
     process.deliverySource = DeliverySource.MANUAL;
     process.deliveryEvidence = deliveryEvidence || null;
     process.score = score;
+    process.evaluatedResponsibleUserId = process.responsibleUserId;
+    process.evaluationRuleVersion = evalConfig?.version ?? 0;
     process.status = status;
     await process.save();
 
@@ -601,6 +612,8 @@ export const confirmDelivery = asyncHandler(async (req: Request, res: Response):
     process.deliverySource = DeliverySource.MANUAL;
     process.deliveryEvidence = deliveryEvidence || null;
     process.score = score;
+    process.evaluatedResponsibleUserId = process.responsibleUserId;
+    process.evaluationRuleVersion = evalConfig?.version ?? 0;
     process.status = status;
     process.deliveryStatus = 'CONFIRMED_PENDING_EMAIL' as any;
     await process.save();
@@ -703,6 +716,8 @@ export const revertDelivery = asyncHandler(async (req: Request, res: Response): 
                 deliverySource: null,
                 deliveryEvidence: null,
                 score: null,
+                evaluatedResponsibleUserId: null,
+                evaluationRuleVersion: null,
                 emailSentAt: null,
                 deliveryEmailBatchId: null,
                 status: getPendingStatus(process.plannedDate, process.limitDate),

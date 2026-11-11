@@ -29,6 +29,7 @@ export async function assertOpenProcess(req: Request, process: any, responsibleO
     const cycle = await Cycle.findOne({ _id: process.cycleId, companyId: req.companyId });
     if (!cycle || cycle.status !== CycleStatus.OPEN) throw new AppError('Não é possível alterar processos de um ciclo fechado.', 400);
     if (responsibleOnly && process.isActive === false) throw new AppError('Processo inativo não pode receber ações de entrega.', 400);
+    if (responsibleOnly && process.assessmentRequired === false) throw new AppError('Processo não aplicável nesta competência. Torne-o aplicável antes de registrar entrega.', 400);
 }
 
 export async function assertResponsibleAccess(req: Request, responsibleUserId: string | undefined, sector: string): Promise<void> {

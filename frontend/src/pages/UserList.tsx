@@ -47,6 +47,7 @@ const AVAILABLE_MENUS = [
     { id: 'dashboard', name: 'Dashboard' },
     { id: 'processes', name: 'Processos' },
     { id: 'reports', name: 'Relatórios' },
+    { id: 'process-performance', name: 'Desempenho de Processos' },
     { id: 'process-curve', name: 'Curva de Processo' },
     { id: 'bonus-report', name: 'Bonificações' },
     { id: 'cycle-history', name: 'Histórico de Ciclos' },
