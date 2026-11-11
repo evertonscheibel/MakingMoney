@@ -1,5 +1,6 @@
 import { ProcessStatus, IEvaluationRules, ScoreResult } from '../types';
 import { getDefaultRules } from '../models/EvaluationConfig';
+import { businessToday } from './assessment';
 
 /**
  * Calculate process score based on delivery date relative to planned and limit dates
@@ -88,14 +89,14 @@ export function getPendingStatus(
     limitDate: Date,
     currentDate: Date = new Date()
 ): ProcessStatus {
-    const now = currentDate.getTime();
-    const L = limitDate.getTime();
+    const now = businessToday(currentDate);
+    const L = limitDate.toISOString().slice(0, 10);
 
     if (now > L) {
         return ProcessStatus.CRITICAL;
     }
 
-    const P = plannedDate.getTime();
+    const P = plannedDate.toISOString().slice(0, 10);
     if (now > P) {
         return ProcessStatus.LATE;
     }
