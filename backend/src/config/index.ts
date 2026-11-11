@@ -39,6 +39,11 @@ export function validateConfig(): void {
                 throw new Error(`Missing required environment variable: ${key}`);
             }
         }
+        const secret = process.env.JWT_SECRET!;
+        if (Buffer.byteLength(secret, 'utf8') < 32
+            || ['super-secret-key-change-me', 'default-dev-secret-change-in-production'].includes(secret)) {
+            throw new Error('JWT_SECRET must be a unique secret with at least 32 bytes in production.');
+        }
     }
 
     // Warn about missing optional keys
